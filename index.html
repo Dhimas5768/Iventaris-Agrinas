@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inventaris Agrinas - Sistem Manajemen Aset IT</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- ==================== LOGIN OVERLAY ==================== -->
+  <div id="login-overlay" class="login-overlay">
+    <div class="login-card">
+      <div class="login-brand">
+        <div class="brand-logo-card">
+          <img src="img/logo-danantara.webp" alt="Logo Danantara Indonesia" class="brand-logo brand-logo-danantara">
+          <div class="logo-divider"></div>
+          <img src="img/logo-agrinas.png" alt="Logo Agrinas Palma Nusantara" class="brand-logo brand-logo-agrinas">
+        </div>
+        <h2>AGRINAS PALMA NUSANTARA</h2>
+        <p>Sistem Inventaris Aset IT (Cloud)</p>
+      </div>
+
+      <div id="login-alert" class="login-alert">Email atau Password salah!</div>
+
+      <form id="form-login" class="login-form">
+        <div class="form-group">
+          <label for="login-email">Email Admin</label>
+          <input type="email" id="login-email" required placeholder="Contoh: admin@agrinas.co.id" autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label for="login-password">Password</label>
+          <input type="password" id="login-password" required placeholder="Masukkan password" autocomplete="current-password">
+        </div>
+        <button type="submit" id="btn-login-submit" class="btn btn-primary" style="justify-content: center; padding: 11px; margin-top: 6px;">
+          Masuk ke Sistem
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== SIDEBAR ==================== -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-logo-card">
+        <img src="img/logo-danantara.webp" alt="Logo Danantara Indonesia" class="brand-logo brand-logo-danantara">
+        <div class="logo-divider"></div>
+        <img src="img/logo-agrinas.png" alt="Logo Agrinas Palma Nusantara" class="brand-logo brand-logo-agrinas">
+      </div>
+      <h2>AGRINAS PALMA NUSANTARA</h2>
+      <small>Sistem Inventaris IT</small>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section">Menu Utama</div>
+      <a href="#dashboard" class="nav-link active" data-view="dashboard">
+        <span class="nav-icon">📊</span>
+        <span>Dashboard</span>
+      </a>
+      <a href="#karyawan" class="nav-link" data-view="karyawan">
+        <span class="nav-icon">👥</span>
+        <span>Data Karyawan</span>
+      </a>
+      <a href="#hardware" class="nav-link" data-view="hardware">
+        <span class="nav-icon">💻</span>
+        <span>End-User Hardware</span>
+      </a>
+      <a href="#network" class="nav-link" data-view="network">
+        <span class="nav-icon">🌐</span>
+        <span>Network &amp; Server</span>
+      </a>
+
+      <div class="nav-section">Lainnya</div>
+      <a href="#audit" class="nav-link" data-view="audit">
+        <span class="nav-icon">📋</span>
+        <span>Laporan Audit</span>
+      </a>
+      <a href="#pengaturan" class="nav-link" data-view="pengaturan">
+        <span class="nav-icon">⚙️</span>
+        <span>Pengaturan</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      &copy; 2026 PT Agrinas Palma Nusantara
+    </div>
+  </aside>
+
+  <!-- ==================== MAIN CONTENT ==================== -->
+  <div class="main-content">
+
+    <!-- Top Bar -->
+    <header class="top-bar">
+      <div class="page-title">
+        <span id="page-breadcrumb-main">Dashboard</span> &nbsp;<span>/ <span id="page-breadcrumb-sub">Ringkasan Sistem</span></span>
+      </div>
+      <div class="top-bar-right">
+        <div class="search-box-wrapper" style="position: relative;">
+          <div class="search-box">
+            <svg class="search-icon-svg" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#718096" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" id="global-search-input" placeholder="Cari Data Karyawan, Perangkat, S/N, IP..." autocomplete="off">
+            <button type="button" class="search-btn" id="btn-global-search">Cari</button>
+          </div>
+
+          <!-- Popup Hasil Pencarian Instan -->
+          <div class="search-results-popup" id="search-results-popup">
+            <div id="search-results-content"></div>
+          </div>
+        </div>
+
+        <!-- User Profile Trigger & Dropdown -->
+        <div class="user-menu-wrapper" style="position: relative;">
+          <div class="user-profile-trigger" id="user-profile-trigger">
+            <div class="user-avatar" id="header-user-avatar">A</div>
+            <div>
+              <div class="user-name" id="header-user-name">Admin IT</div>
+              <div class="user-role" id="header-user-role">IT Department</div>
+            </div>
+            <span style="font-size: 0.75rem; color: var(--text-muted); margin-left: 2px;">▼</span>
+          </div>
+
+          <div class="user-dropdown" id="user-dropdown">
+            <div class="dropdown-header">
+              <div class="name" id="dropdown-user-name">Admin IT</div>
+              <div class="role" id="dropdown-user-role">admin@agrinas.co.id</div>
+            </div>
+            <button class="dropdown-item" id="btn-open-user-info">
+              <span>👤</span> Info Akun
+            </button>
+            <button class="dropdown-item" id="btn-nav-settings">
+              <span>⚙️</span> Pengaturan Sistem
+            </button>
+            <button class="dropdown-item logout" id="btn-logout">
+              <span>🚪</span> Logout / Keluar
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Page Body (SPA Container) -->
+    <div class="page-body">
+
+      <!-- ==================== VIEW 1: DASHBOARD ==================== -->
+      <div id="view-dashboard" class="view-section active">
+        <section class="summary-cards">
+          <div class="summary-card" onclick="app.navigateTo('karyawan')" style="cursor: pointer;">
+            <div class="card-icon green">👥</div>
+            <div class="card-info">
+              <h3 id="stat-karyawan">0</h3>
+              <p>Total Karyawan</p>
+            </div>
+          </div>
+          <div class="summary-card" onclick="app.navigateTo('hardware')" style="cursor: pointer;">
+            <div class="card-icon blue">💻</div>
+            <div class="card-info">
+              <h3 id="stat-hardware">0</h3>
+              <p>Perangkat Hardware</p>
+            </div>
+          </div>
+          <div class="summary-card" onclick="app.navigateTo('network')" style="cursor: pointer;">
+            <div class="card-icon orange">🌐</div>
+            <div class="card-info">
+              <h3 id="stat-network">0</h3>
+              <p>Network &amp; Server</p>
+            </div>
+          </div>
+          <div class="summary-card" onclick="app.navigateTo('hardware')" style="cursor: pointer;">
+            <div class="card-icon red">🔧</div>
+            <div class="card-info">
+              <h3 id="stat-servis">0</h3>
+              <p>Perlu Servis / Rusak</p>
+            </div>
+          </div>
+        </section>
+
+        <div class="dashboard-grid">
+          <div>
+            <div class="section-header">
+              <h2><span class="section-icon">💻</span> Perangkat Baru Ditambahkan</h2>
+              <button class="btn btn-outline btn-sm" onclick="app.navigateTo('hardware')">Lihat Semua →</button>
+            </div>
+            <div class="table-wrapper">
+              <div class="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Kode Aset</th>
+                      <th>Perangkat</th>
+                      <th>Merek &amp; Tipe</th>
+                      <th>Pemegang</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="dashboard-recent-hardware"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div class="section-header">
+              <h2><span class="section-icon">🔔</span> Status &amp; Catatan Penting</h2>
+            </div>
+            <div class="activity-list" id="dashboard-activity-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== VIEW 2: DATA KARYAWAN ==================== -->
+      <div id="view-karyawan" class="view-section">
+        <div class="section-header">
+          <h2><span class="section-icon">👥</span> Data Karyawan</h2>
+          <div class="section-actions">
+            <button class="btn btn-primary" id="btn-tambah-karyawan">+ Tambah Karyawan</button>
+            <button class="btn btn-outline" onclick="app.exportKaryawanCSV()">📥 Ekspor CSV</button>
+          </div>
+        </div>
+
+        <div class="table-wrapper">
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>No</th>
+                  <th>NIK / NIP</th>
+                  <th>Nama Lengkap</th>
+                  <th>Divisi / Departemen</th>
+                  <th>Jabatan</th>
+                  <th>Jumlah Perangkat</th>
+                  <th style="text-align: center;">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="table-karyawan-body"></tbody>
+            </table>
+          </div>
+          <div class="table-footer">
+            <div class="showing" id="showing-karyawan">Menampilkan 0 data</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== VIEW 3: END-USER HARDWARE ==================== -->
+      <div id="view-hardware" class="view-section">
+        <div class="section-header">
+          <h2><span class="section-icon">💻</span> Perangkat Keras Utama (End-User Hardware)</h2>
+          <div class="section-actions">
+            <div class="filter-tabs" id="hardware-filter-tabs">
+              <button class="filter-tab active" data-filter="all">Semua</button>
+              <button class="filter-tab" data-filter="Laptop">Laptop</button>
+              <button class="filter-tab" data-filter="PC Desktop">PC Desktop</button>
+              <button class="filter-tab" data-filter="Printer">Printer</button>
+              <button class="filter-tab" data-filter="Monitor">Monitor</button>
+            </div>
+            <button class="btn btn-primary" id="btn-tambah-hardware">+ Tambah Perangkat</button>
+            <button class="btn btn-outline" onclick="app.exportHardwareCSV()">📥 Ekspor CSV</button>
+          </div>
+        </div>
+
+        <div class="table-wrapper">
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Kode Aset</th>
+                  <th>Jenis</th>
+                  <th>Merek &amp; Tipe</th>
+                  <th>Serial Number</th>
+                  <th>MAC Address</th>
+                  <th>Pemegang</th>
+                  <th>Kondisi / Status</th>
+                  <th style="text-align: center;">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="table-hardware-body"></tbody>
+            </table>
+          </div>
+          <div class="table-footer">
+            <div class="showing" id="showing-hardware">Menampilkan 0 perangkat</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== VIEW 4: NETWORK & SERVER ==================== -->
+      <div id="view-network" class="view-section">
+        <div class="section-header">
+          <h2><span class="section-icon">🌐</span> Perangkat Jaringan &amp; Server (Network &amp; Infrastructure)</h2>
+          <div class="section-actions">
+            <div class="filter-tabs" id="network-filter-tabs">
+              <button class="filter-tab active" data-filter="all">Semua</button>
+              <button class="filter-tab" data-filter="Router">Router</button>
+              <button class="filter-tab" data-filter="Switch">Switch</button>
+              <button class="filter-tab" data-filter="Access Point">Access Point</button>
+              <button class="filter-tab" data-filter="Server">Server</button>
+              <button class="filter-tab" data-filter="Firewall">Firewall</button>
+            </div>
+            <button class="btn btn-primary" id="btn-tambah-network">+ Tambah Perangkat</button>
+            <button class="btn btn-outline" onclick="app.exportNetworkCSV()">📥 Ekspor CSV</button>
+          </div>
+        </div>
+
+        <div class="table-wrapper">
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Kode Aset</th>
+                  <th>Nama Perangkat</th>
+                  <th>Kategori</th>
+                  <th>IP Address</th>
+                  <th>MAC Address</th>
+                  <th>Lokasi Penempatan</th>
+                  <th>Status</th>
+                  <th style="text-align: center;">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="table-network-body"></tbody>
+            </table>
+          </div>
+          <div class="table-footer">
+            <div class="showing" id="showing-network">Menampilkan 0 perangkat</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== VIEW 5: LAPORAN AUDIT ==================== -->
+      <div id="view-audit" class="view-section">
+        <div class="print-only print-header">
+          <h1>PT AGRINAS PALMA NUSANTARA</h1>
+          <h2>LAPORAN AUDIT &amp; ASSET TAGGING INVENTARIS IT</h2>
+          <p>Jl. Jenderal Sudirman Kav. 52-53, Jakarta Selatan &bull; Email: it.support@agrinas.co.id</p>
+          <p id="print-date">Dicetak pada: -</p>
+        </div>
+
+        <div class="section-header">
+          <h2><span class="section-icon">📋</span> Laporan Audit &amp; Rekapitulasi Aset IT</h2>
+          <div class="section-actions">
+            <button class="btn btn-primary" onclick="app.printAuditReport()">🖨️ Cetak Laporan (Print / PDF)</button>
+            <button class="btn btn-outline" onclick="app.exportAuditCSV()">📥 Ekspor Seluruh Aset (CSV)</button>
+          </div>
+        </div>
+
+        <div class="summary-cards" style="margin-bottom: 24px;">
+          <div class="summary-card">
+            <div class="card-icon green">📦</div>
+            <div class="card-info">
+              <h3 id="audit-total-aset">0</h3>
+              <p>Total Seluruh Aset IT</p>
+            </div>
+          </div>
+          <div class="summary-card">
+            <div class="card-icon blue">✅</div>
+            <div class="card-info">
+              <h3 id="audit-aset-aktif">0</h3>
+              <p>Aset Kondisi Baik / Online</p>
+            </div>
+          </div>
+          <div class="summary-card">
+            <div class="card-icon orange">⚠️</div>
+            <div class="card-info">
+              <h3 id="audit-aset-servis">0</h3>
+              <p>Perlu Servis / Maintenance</p>
+            </div>
+          </div>
+          <div class="summary-card">
+            <div class="card-icon red">❌</div>
+            <div class="card-info">
+              <h3 id="audit-aset-rusak">0</h3>
+              <p>Rusak / Offline</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-wrapper">
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>No</th>
+                  <th>Kode Aset</th>
+                  <th>Kelompok Aset</th>
+                  <th>Nama / Jenis Perangkat</th>
+                  <th>Serial Number</th>
+                  <th>IP / MAC Address</th>
+                  <th>Penanggung Jawab / Lokasi</th>
+                  <th>Status Kondisi</th>
+                </tr>
+              </thead>
+              <tbody id="table-audit-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="print-only print-signature">
+          <div class="signature-box">
+            <p>Mengetahui,</p>
+            <p><strong>Manager IT Department</strong></p>
+            <div class="signature-space"></div>
+            <p class="signature-name">Ahmad Fauzi, S.Kom</p>
+            <p>NIP: AG-IT-001</p>
+          </div>
+          <div class="signature-box">
+            <p>Petugas Audit IT,</p>
+            <p><strong>IT Asset Specialist</strong></p>
+            <div class="signature-space"></div>
+            <p class="signature-name" id="print-auditor-name">Admin IT</p>
+            <p>PT Agrinas Palma Nusantara</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== VIEW 6: PENGATURAN ==================== -->
+      <div id="view-pengaturan" class="view-section">
+        <div class="section-header">
+          <h2><span class="section-icon">⚙️</span> Pengaturan Sistem &amp; Manajemen Cloud Database</h2>
+        </div>
+
+        <div class="settings-grid">
+          <div class="settings-card">
+            <h3><span>👤</span> Profil &amp; Keamanan Akun Firebase</h3>
+            <p class="settings-desc">Perbarui nama tampilan profil atau ganti kata sandi akun Firebase Authentication Anda.</p>
+            <form id="form-update-profile">
+              <div class="form-group" style="margin-bottom: 12px;">
+                <label for="settings-name">Nama Tampilan (Display Name)</label>
+                <input type="text" id="settings-name" required>
+              </div>
+              <div class="form-group" style="margin-bottom: 12px;">
+                <label for="settings-email">Email Terdaftar (Read-Only)</label>
+                <input type="email" id="settings-email" readonly style="background: #F3F4F6; color: #6B7280;">
+              </div>
+              <div class="form-group" style="margin-bottom: 16px;">
+                <label for="settings-password">Password Baru (kosongkan jika tidak diubah)</label>
+                <input type="password" id="settings-password" placeholder="Minimal 6 karakter">
+              </div>
+              <button type="submit" class="btn btn-primary">Simpan Perubahan Akun</button>
+            </form>
+          </div>
+
+          <div class="settings-card">
+            <h3><span>☁️</span> Cadangan &amp; Pemulihan Cloud Firestore</h3>
+            <p class="settings-desc">Unduh salinan seluruh database dari Cloud Firestore ke file JSON, atau impor data cadangan ke server.</p>
+            
+            <div style="display: flex; flex-direction: column; gap: 14px;">
+              <div>
+                <button class="btn btn-primary" style="width: 100%; justify-content: center;" onclick="app.backupDatabase()">
+                  📥 Cadangkan Database Cloud (Download JSON)
+                </button>
+                <small style="color: var(--text-muted); display: block; margin-top: 4px;">Simpan salinan lengkap dari Cloud Firestore ke komputer.</small>
+              </div>
+
+              <div style="border-top: 1px solid var(--border); padding-top: 14px;">
+                <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 6px;">Impor Data dari File JSON ke Cloud</label>
+                <input type="file" id="input-restore-file" accept=".json" style="font-size: 0.8rem; margin-bottom: 8px; width: 100%;">
+                <button class="btn btn-outline" style="width: 100%; justify-content: center;" onclick="app.restoreDatabase()">
+                  📤 Unggah &amp; Pulihkan ke Firestore
+                </button>
+              </div>
+
+              <div style="border-top: 1px solid var(--border); padding-top: 14px;">
+                <button class="btn btn-danger" style="width: 100%; justify-content: center;" onclick="app.resetDatabase()">
+                  ⚠️ Isi Ulang Data Awal (Seed Dummy Data)
+                </button>
+                <small style="color: var(--text-muted); display: block; margin-top: 4px;">Menambahkan ulang data contoh ke koleksi Firestore.</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ==================== MODALS ==================== -->
+
+  <!-- MODAL: KARYAWAN -->
+  <div id="modal-karyawan" class="modal-overlay">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3 id="modal-karyawan-title"><span>👥</span> Tambah Data Karyawan</h3>
+        <button class="modal-close" data-close="modal-karyawan">&times;</button>
+      </div>
+      <form id="form-karyawan">
+        <input type="hidden" id="karyawan-id">
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="karyawan-nik">NIK / NIP <span style="color:var(--danger)">*</span></label>
+              <input type="text" id="karyawan-nik" required placeholder="Contoh: AG-2023-014">
+            </div>
+            <div class="form-group">
+              <label for="karyawan-nama">Nama Lengkap <span style="color:var(--danger)">*</span></label>
+              <input type="text" id="karyawan-nama" required placeholder="Nama karyawan">
+            </div>
+            <div class="form-group">
+              <label for="karyawan-divisi">Divisi / Departemen <span style="color:var(--danger)">*</span></label>
+              <select id="karyawan-divisi" required>
+                <option value="">Pilih Divisi...</option>
+                <option value="IT &amp; Sistem Informasi">IT &amp; Sistem Informasi</option>
+                <option value="Operasional Perkebunan">Operasional Perkebunan</option>
+                <option value="Finance &amp; Accounting">Finance &amp; Accounting</option>
+                <option value="Human Resources (HRD)">Human Resources (HRD)</option>
+                <option value="Logistik &amp; Supply Chain">Logistik &amp; Supply Chain</option>
+                <option value="Sekretariat &amp; Legal">Sekretariat &amp; Legal</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="karyawan-jabatan">Jabatan <span style="color:var(--danger)">*</span></label>
+              <input type="text" id="karyawan-jabatan" required placeholder="Contoh: Staff IT">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" data-close="modal-karyawan">Batal</button>
+          <button type="submit" class="btn btn-primary">Simpan Karyawan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: HARDWARE -->
+  <div id="modal-hardware" class="modal-overlay">
+    <div class="modal-container modal-lg">
+      <div class="modal-header">
+        <h3 id="modal-hardware-title"><span>💻</span> Tambah End-User Hardware</h3>
+        <button class="modal-close" data-close="modal-hardware">&times;</button>
+      </div>
+      <form id="form-hardware">
+        <input type="hidden" id="hardware-id">
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="hardware-kode">Kode Aset / Tagging <span style="color:var(--danger)">*</span></label>
+              <input type="text" id="hardware-kode" required placeholder="Contoh: IT-PC-014">
+            </div>
+            <div class="form-group">
+              <label for="hardware-jenis">Jenis Perangkat <span style="color:var(--danger)">*</span></label>
+              <select id="hardware-jenis" required>
+                <option value="">Pilih Jenis...</option>
+                <option value="Laptop">Laptop</option>
+                <option value="PC Desktop">PC Desktop</option>
+                <option value="Printer">Printer</option>
+                <option value="Monitor">Monitor</option>
+                <option value="Scanner">Scanner</option>
+                <option value="Proyektor">Proyektor</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="hardware-merek">Merek &amp; Tipe <span style="color:var(--danger)">*</span></label>
+              <input type="text" id="hardware-merek" required placeholder="Contoh: Lenovo ThinkPad T14">
+            </div>
+            <div class="form-group">
+              <label for="hardware-sn">Serial Number (S/N) <span style="color:var(--danger)">*</span></label>
+              <input type="text" id="hardware-sn" required placeholder="Nomor seri pabrik">
+            </div>
+            <div class="form-group">
+              <label for="hardware-mac">MAC Address</label>
+              <input type="text" id="hardware-mac" placeholder="Contoh: AA:BB:CC:11:22:33">
+            </div>
+            <div class="form-group">
+              <label for="hardware-pemegang">Pemegang Perangkat (PIC) <span style="color:var(--danger)">*</span></label>
+              <select id="hardware-pemegang" required></select>
+            </div>
+            <div class="form-group">
+              <label for="hardware-status">Kondisi / Status <span style="color:var(--danger)">*</span></label>
+              <select id="hardware-status" required>
+                <option value="Aktif">Aktif (Baik)</option>
+                <option value="Perlu Servis">Perlu Servis</option>
+                <option value="Rusak">Rusak</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="hardware-tahun">Tahun Pengadaan</label>
+              <input type="number" id="hardware-tahun" placeholder="2024" min="2000" max="2035">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" data-close="modal-hardware">Batal</button>
+          <button type="submit" class="btn btn-primary">Simpan Perangkat</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: NETWORK -->
+  <div id="modal-network" class="modal-overlay">
+    <div class="modal-container modal-lg">
+      <div class="modal-header">
+        <h3 id="modal-network-title"><span>🌐</span> Tambah Network &amp; Server</h3>
+        <button class="modal-close" data-close="modal-network">&times;</button>
+      </div>
+      <form id="form-network">
+        <input type="hidden" id="network-id">
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="network-kode">Kode Aset <span style="color:var(--danger)">*</span></label>
+              <input type="text" id="network-kode" required placeholder="Contoh: IT-SW-001">
+            </div>
+            <div class="form-group">
+              <label for="network-nama">Nama Perangkat &amp; Tipe <span style="color:var(--danger)">*</span></label>
+              <input type="text" id="network-nama" required placeholder="Contoh: Cisco Catalyst 2960-X">
+            </div>
+            <div class="form-group">
+              <label for="network-kategori">Kategori <span style="color:var(--danger)">*</span></label>
+              <select id="network-kategori" required>
+                <option value="">Pilih Kategori...</option>
+                <option value="Router">Router</option>
+                <option value="Switch">Switch</option>
+                <option value="Access Point">Access Point</option>
+                <option value="Server">Server</option>
+                <option value="Firewall">Firewall</option>
+                <option value="UPS">UPS</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="network-ip">IP Address</label>
+              <input type="text" id="network-ip" placeholder="Contoh: 192.168.1.1">
+            </div>
+            <div class="form-group">
+              <label for="network-mac">MAC Address</label>
+              <input type="text" id="network-mac" placeholder="Contoh: A1:B2:C3:D4:E5:F6">
+            </div>
+            <div class="form-group">
+              <label for="network-lokasi">Lokasi Penempatan <span style="color:var(--danger)">*</span></label>
+              <input type="text" id="network-lokasi" required placeholder="Contoh: Rack A - Ruang Server Lt.2">
+            </div>
+            <div class="form-group col-span-2">
+              <label for="network-status">Status Operasional <span style="color:var(--danger)">*</span></label>
+              <select id="network-status" required>
+                <option value="Online">Online</option>
+                <option value="Maintenance">Maintenance</option>
+                <option value="Offline">Offline</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" data-close="modal-network">Batal</button>
+          <button type="submit" class="btn btn-primary">Simpan Perangkat</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: INFO AKUN -->
+  <div id="modal-user-info" class="modal-overlay">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3><span>👤</span> Detail Akun Sedang Aktif</h3>
+        <button class="modal-close" data-close="modal-user-info">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 20px;">
+          <div class="user-avatar" id="info-modal-avatar" style="width: 54px; height: 54px; font-size: 1.25rem;">A</div>
+          <div>
+            <h4 id="info-account-name" style="font-size: 1.1rem; color: var(--text-dark);">Admin IT</h4>
+            <span class="badge badge-success" id="info-account-role">IT Department</span>
+          </div>
+        </div>
+        <div style="background: #F9FBF9; padding: 14px; border-radius: var(--radius-sm); border: 1px solid var(--border);">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+            <span style="color: var(--text-muted); font-size: 0.85rem;">Email Firebase:</span>
+            <strong id="info-account-email">-</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+            <span style="color: var(--text-muted); font-size: 0.85rem;">Instansi:</span>
+            <strong>PT Agrinas Palma Nusantara</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: var(--text-muted); font-size: 0.85rem;">Database Engine:</span>
+            <span style="color: var(--success); font-weight: 600;">● Cloud Firestore Real-Time</span>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" data-close="modal-user-info">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCRIPT LOGIKA APLIKASI (ES MODULE UNTUK FIREBASE SDK) -->
+  <script type="module" src="app.js"></script>
+</body>
+</html>
