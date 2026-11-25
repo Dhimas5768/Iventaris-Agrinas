@@ -1456,3 +1456,49 @@ tbody td.muted {
     width: 100%;
   }
 }
+
+/* Tampilan Responsif untuk HP / Mobile */
+@media (max-width: 768px) {
+  body, .app-container, .layout, .wrapper {
+    flex-direction: column !important;
+    overflow-x: hidden;
+  }
+
+  aside, .sidebar {
+    width: 100% !important;
+    min-width: 100% !important;
+    height: auto !important;
+    position: relative !important;
+    padding: 12px 16px !important;
+  }
+
+  aside nav, .sidebar nav, .nav-menu {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+  }
+
+  main, .main-content, .content {
+    width: 100% !important;
+    margin-left: 0 !important;
+    padding: 14px !important;
+  }
+
+  header, .topbar {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 10px !important;
+  }
+
+  .stats-grid, .cards-grid, .summary-cards {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  table {
+    display: block !important;
+    width: 100% !important;
+    overflow-x: auto !important;
+    white-space: nowrap !important;
+  }
+}
