@@ -1152,6 +1152,71 @@ tbody td.muted {
   display: none;
 }
 
+.login-alert.success {
+  background: #E8F5E9;
+  color: #2E7D32;
+  border-color: #A5D6A7;
+  display: block;
+}
+
+/* --- Auth Toggle Tabs & Switch Link --- */
+.auth-tabs {
+  display: flex;
+  background: #F1F5F1;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 20px;
+  border: 1px solid var(--border);
+  gap: 4px;
+}
+
+.auth-tab {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: var(--transition);
+  text-align: center;
+}
+
+.auth-tab.active {
+  background: var(--primary);
+  color: #FFFFFF;
+  box-shadow: 0 2px 6px rgba(27, 94, 32, 0.25);
+}
+
+.auth-form-panel {
+  display: none;
+  animation: fadeIn 0.25s ease;
+}
+
+.auth-form-panel.active {
+  display: block;
+}
+
+.auth-switch-prompt {
+  margin-top: 18px;
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.auth-switch-prompt a {
+  color: var(--primary);
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.auth-switch-prompt a:hover {
+  color: var(--primary-light);
+}
+
 .login-credentials-hint {
   margin-top: 18px;
   padding: 10px 14px;
@@ -1353,5 +1418,41 @@ tbody td.muted {
   .signature-name {
     font-weight: bold;
     text-decoration: underline;
+  }
+}
+
+.tenure-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 150px;
+}
+
+.tenure-cell small {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.tenure-cell .badge,
+.table-wrapper .badge {
+  white-space: nowrap;
+}
+
+.attendance-date-filter {
+  min-width: 150px;
+}
+
+.attendance-date-filter label {
+  margin-bottom: 0;
+}
+
+.attendance-date-filter input {
+  padding: 7px 10px;
+}
+
+@media (max-width: 768px) {
+  .section-actions .attendance-date-filter {
+    width: 100%;
   }
 }
