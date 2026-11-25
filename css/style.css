@@ -1457,47 +1457,82 @@ tbody td.muted {
   }
 }
 
-/* Tampilan Responsif untuk HP / Mobile */
+/* Tampilan Responsif HP / Mobile - Fix Zoom Out & Tabel */
 @media (max-width: 768px) {
-  body, .app-container, .layout, .wrapper {
-    flex-direction: column !important;
-    overflow-x: hidden;
+  html, body {
+    width: 100% !important;
+    max-width: 100vw !important;
+    overflow-x: hidden !important;
+    font-size: 14px !important;
   }
 
-  aside, .sidebar {
+  /* Paksa semua pembungkus utama full lebar layar HP */
+  .app-container, .layout, .wrapper, .main-wrapper, main, .main-content, .content {
     width: 100% !important;
-    min-width: 100% !important;
+    max-width: 100vw !important;
+    min-width: 0 !important;
+    margin-left: 0 !important;
+    padding: 12px !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Tampilkan sidebar hijau sebagai bar menu rapi di bagian atas */
+  aside, .sidebar, nav.sidebar {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    max-width: 100vw !important;
     height: auto !important;
     position: relative !important;
-    padding: 12px 16px !important;
+    left: 0 !important;
+    padding: 12px !important;
+    box-sizing: border-box !important;
   }
 
-  aside nav, .sidebar nav, .nav-menu {
+  aside ul, .sidebar ul, aside nav, .sidebar nav, .nav-menu, .sidebar-menu {
     display: flex !important;
+    flex-direction: row !important;
     flex-wrap: wrap !important;
     gap: 6px !important;
-  }
-
-  main, .main-content, .content {
     width: 100% !important;
-    margin-left: 0 !important;
-    padding: 14px !important;
   }
 
-  header, .topbar {
+  /* Header & kolom pencarian atas */
+  header, .topbar, .header {
+    display: flex !important;
     flex-direction: column !important;
-    align-items: flex-start !important;
-    gap: 10px !important;
+    align-items: stretch !important;
+    width: 100% !important;
+    gap: 8px !important;
+    padding: 10px !important;
+    box-sizing: border-box !important;
   }
 
-  .stats-grid, .cards-grid, .summary-cards {
-    grid-template-columns: repeat(2, 1fr) !important;
+  header input, .topbar input, .search-box, .search-bar {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Kartu statistik full 1 kolom besar agar mudah dibaca */
+  .stats-grid, .cards-grid, .summary-cards, .dashboard-cards, .grid-stats {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
     gap: 10px !important;
+    width: 100% !important;
+  }
+
+  /* Kunci agar tabel tidak membuat seluruh layar HP ikut mengecil (zoom out) */
+  .table-container, .table-responsive, .card-table, .recent-table {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
   }
 
   table {
     display: block !important;
     width: 100% !important;
+    max-width: 100% !important;
     overflow-x: auto !important;
     white-space: nowrap !important;
   }
