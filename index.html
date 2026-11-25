@@ -332,16 +332,18 @@
 
         <div class="table-wrapper">
           <div class="table-scroll">
-            <table>
+            <table class="table-karyawan">
               <thead>
                 <tr>
                   <th>No</th>
                   <th>NIK / NIP</th>
-                  <th>Nama Lengkap</th>
-                  <th>Divisi / Departemen</th>
+                  <th>Nama Karyawan</th>
                   <th>Jabatan</th>
+                  <th>Departemen / Bagian</th>
                   <th>Masa Jabatan</th>
-                  <th>Jumlah Perangkat</th>
+                  <th>Lokasi</th>
+                  <th>Status Inventaris IT</th>
+                  <th>Penjelasan Inventaris IT</th>
                   <th style="text-align: center;">Aksi</th>
                 </tr>
               </thead>
@@ -589,6 +591,32 @@
           </div>
         </div>
 
+        <section class="audit-employee-section">
+          <div class="section-header">
+            <h3>Rekap Inventaris IT per Karyawan</h3>
+          </div>
+          <div class="table-wrapper">
+            <div class="table-scroll">
+              <table class="table-karyawan-audit">
+                <thead>
+                  <tr>
+                    <th>No</th>
+                    <th>NIK / NIP</th>
+                    <th>Nama Karyawan</th>
+                    <th>Jabatan</th>
+                    <th>Departemen / Bagian</th>
+                    <th>Masa Jabatan</th>
+                    <th>Lokasi</th>
+                    <th>Status Inventaris IT</th>
+                    <th>Penjelasan Inventaris IT</th>
+                  </tr>
+                </thead>
+                <tbody id="table-audit-karyawan-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
         <div class="print-signature report-signature">
           <div class="signature-box">
             <p>Dibuat oleh,</p>
@@ -714,40 +742,62 @@
               <input type="text" id="karyawan-nik" required placeholder="Contoh: AG-2023-014">
             </div>
             <div class="form-group">
-              <label for="karyawan-nama">Nama Lengkap <span style="color:var(--danger)">*</span></label>
+              <label for="karyawan-nama">Nama Karyawan <span style="color:var(--danger)">*</span></label>
               <input type="text" id="karyawan-nama" required placeholder="Nama karyawan">
             </div>
             <div class="form-group">
-              <label for="karyawan-divisi">Divisi / Departemen <span style="color:var(--danger)">*</span></label>
-              <select id="karyawan-divisi" required>
-                <option value="">Pilih Divisi...</option>
-                <option value="IT &amp; Sistem Informasi">IT &amp; Sistem Informasi</option>
-                <option value="Operasional Perkebunan">Operasional Perkebunan</option>
-                <option value="Finance &amp; Accounting">Finance &amp; Accounting</option>
-                <option value="Human Resources (HRD)">Human Resources (HRD)</option>
-                <option value="Logistik &amp; Supply Chain">Logistik &amp; Supply Chain</option>
-                <option value="Sekretariat &amp; Legal">Sekretariat &amp; Legal</option>
-              </select>
+              <label for="karyawan-jabatan">Jabatan <span style="color:var(--danger)">*</span></label>
+              <input type="text" id="karyawan-jabatan" required placeholder="Contoh: Manager IT, Staf Keuangan, Asisten Kepala">
             </div>
             <div class="form-group">
-              <label for="karyawan-jabatan">Jabatan <span style="color:var(--danger)">*</span></label>
-              <input type="text" id="karyawan-jabatan" required placeholder="Contoh: Staff IT">
+              <label for="karyawan-departemen">Departemen / Bagian</label>
+              <input type="text" id="karyawan-departemen" list="karyawan-departemen-options" placeholder="Pilih atau ketik departemen">
+              <datalist id="karyawan-departemen-options">
+                <option value="IT Infrastructure"></option>
+                <option value="Keuangan & Akuntansi"></option>
+                <option value="Operasional Kebun"></option>
+                <option value="HRD & GA"></option>
+                <option value="Logistik"></option>
+              </datalist>
+            </div>
+            <div class="form-group">
+              <label for="karyawan-lokasi">Lokasi Penempatan</label>
+              <input type="text" id="karyawan-lokasi" placeholder="Regional Pontianak / Distrik I / Distrik II / Kantor Pusat">
+            </div>
+            <div class="form-group col-span-2">
+              <label for="karyawan-status-inventaris">Status Inventaris IT <span style="color:var(--danger)">*</span></label>
+              <select id="karyawan-status-inventaris" required>
+                <option value="">Pilih status inventaris...</option>
+                <option value="Ada">Ada</option>
+                <option value="Tidak">Tidak</option>
+              </select>
+            </div>
+            <div class="form-group col-span-2">
+              <label for="karyawan-keterangan-inventaris">Penjelasan Inventaris IT <span style="color:var(--danger)">*</span></label>
+              <textarea id="karyawan-keterangan-inventaris" rows="3" required placeholder="Contoh: Memegang 1 unit Laptop Lenovo ThinkPad (IT-LT-002) &amp; Mouse Wireless"></textarea>
+            </div>
+            <div id="karyawan-inventory-suggestion" class="inventory-suggestion col-span-2" hidden aria-live="polite">
+              <span id="karyawan-inventory-suggestion-text"></span>
+              <button type="button" class="btn btn-outline btn-sm" id="btn-use-karyawan-inventory-suggestion">Gunakan saran</button>
             </div>
             <div class="form-group">
               <label for="karyawan-tanggal-mulai">Tanggal Mulai Menjabat</label>
               <input type="date" id="karyawan-tanggal-mulai">
             </div>
             <div class="form-group">
-              <label for="karyawan-akhir-jabatan">Akhir Masa Jabatan / Kontrak</label>
+              <label for="karyawan-akhir-jabatan">Akhir Masa Jabatan / Estimasi Pensiun</label>
               <input type="date" id="karyawan-akhir-jabatan">
             </div>
             <div class="form-group col-span-2">
               <label for="karyawan-status-jabatan">Status Kepegawaian</label>
               <select id="karyawan-status-jabatan">
                 <option value="Karyawan Tetap">Karyawan Tetap</option>
-                <option value="Kontrak (PKWT)">Kontrak (PKWT)</option>
-                <option value="Masa Percobaan">Masa Percobaan</option>
-                <option value="Selesai / Pensiun">Selesai / Pensiun</option>
+                <option value="Karyawan Kontrak (PKWT)">Karyawan Kontrak (PKWT)</option>
+                <option value="Mendekati Pensiun">Mendekati Pensiun</option>
+                <option value="Pensiun">Pensiun</option>
+                <option value="Kontrak (PKWT)" hidden>Kontrak (PKWT) - Data lama</option>
+                <option value="Masa Percobaan" hidden>Masa Percobaan - Data lama</option>
+                <option value="Selesai / Pensiun" hidden>Selesai / Pensiun - Data lama</option>
               </select>
             </div>
           </div>
@@ -757,6 +807,66 @@
           <button type="submit" class="btn btn-primary">Simpan Karyawan</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <div id="modal-karyawan-detail" class="modal-overlay">
+    <div class="modal-container employee-detail-modal">
+      <div class="modal-header">
+        <h3><span>👤</span> Detail Karyawan</h3>
+        <button class="modal-close" data-close="modal-karyawan-detail" aria-label="Tutup">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="employee-detail-grid">
+          <div class="employee-detail-item">
+            <span>NIK / NIP</span>
+            <strong id="detail-karyawan-nik">-</strong>
+          </div>
+          <div class="employee-detail-item">
+            <span>Nama Karyawan</span>
+            <strong id="detail-karyawan-nama">-</strong>
+          </div>
+          <div class="employee-detail-item">
+            <span>Jabatan</span>
+            <strong id="detail-karyawan-jabatan">-</strong>
+          </div>
+          <div class="employee-detail-item">
+            <span>Departemen / Bagian</span>
+            <strong id="detail-karyawan-departemen">-</strong>
+          </div>
+          <div class="employee-detail-item">
+            <span>Lokasi Penempatan</span>
+            <strong id="detail-karyawan-lokasi">-</strong>
+          </div>
+          <div class="employee-detail-item">
+            <span>Tanggal Mulai Menjabat</span>
+            <strong id="detail-karyawan-tanggal-mulai">-</strong>
+          </div>
+          <div class="employee-detail-item">
+            <span>Akhir Masa Jabatan / Estimasi Pensiun</span>
+            <strong id="detail-karyawan-akhir-jabatan">-</strong>
+          </div>
+          <div class="employee-detail-item">
+            <span>Status Inventaris IT</span>
+            <strong id="detail-karyawan-status-inventaris">-</strong>
+          </div>
+          <div class="employee-detail-item employee-detail-wide">
+            <span>Penjelasan Inventaris IT</span>
+            <p id="detail-karyawan-keterangan-inventaris">-</p>
+          </div>
+          <div class="employee-detail-item">
+            <span>Status Kepegawaian</span>
+            <strong id="detail-karyawan-status-jabatan">-</strong>
+          </div>
+          <div class="employee-detail-item">
+            <span>Sisa Masa Jabatan / Peringatan</span>
+            <strong id="detail-karyawan-masa-jabatan">-</strong>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" data-close="modal-karyawan-detail">Tutup</button>
+      </div>
     </div>
   </div>
 
@@ -1018,10 +1128,10 @@
             </div>
           </div>
         </div>
-        <div class="modal-footer qr-modal-actions">
-          <button type="button" class="btn btn-outline" data-close="modal-qr">Tutup</button>
-          <button type="button" class="btn btn-primary" id="btn-print-qr">🖨️ Cetak Label</button>
-        </div>
+      </div>
+      <div class="modal-footer qr-modal-actions">
+        <button type="button" class="btn btn-outline" data-close="modal-qr">Tutup</button>
+        <button type="button" class="btn btn-primary" id="btn-print-qr">🖨️ Cetak Label</button>
       </div>
     </div>
   </div>

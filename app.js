@@ -56,11 +56,11 @@ const AUDIT_SIGNATURE_MANAGER_KEY = 'agrinas.auditSignature.manager';
 // 2. DATA AWAL (SEED DUMMY JIKA FIRESTORE MASIH KOSONG)
 // =======================================================================
 const DEFAULT_KARYAWAN = [
-  { nik: 'AG-2021-001', nama: 'Ahmad Fauzi', divisi: 'IT & Sistem Informasi', jabatan: 'Manager IT' },
-  { nik: 'AG-2022-015', nama: 'Siti Rahmawati', divisi: 'Finance & Accounting', jabatan: 'Staff Administrasi Keuangan' },
-  { nik: 'AG-2021-008', nama: 'Budi Santoso', divisi: 'IT & Sistem Informasi', jabatan: 'Network Engineer' },
-  { nik: 'AG-2023-042', nama: 'Dewi Lestari', divisi: 'Human Resources (HRD)', jabatan: 'HR Specialist' },
-  { nik: 'AG-2022-029', nama: 'Rizky Pratama', divisi: 'Operasional Perkebunan', jabatan: 'Supervisor Operasional' }
+  { nik: 'AG-2021-001', nama: 'Ahmad Fauzi', departemen: 'IT Infrastructure', divisi: 'IT Infrastructure', jabatan: 'Manager IT', lokasi: 'Kantor Pusat', statusInventaris: 'Ada', keteranganInventaris: 'Memegang 1 unit Dell OptiPlex 7090 (IT-PC-001).' },
+  { nik: 'AG-2022-015', nama: 'Siti Rahmawati', departemen: 'Keuangan & Akuntansi', divisi: 'Keuangan & Akuntansi', jabatan: 'Staf Keuangan', lokasi: 'Regional Pontianak', statusInventaris: 'Ada', keteranganInventaris: 'Memegang 1 unit Lenovo ThinkPad T14 Gen 3 (IT-LT-002).' },
+  { nik: 'AG-2021-008', nama: 'Budi Santoso', departemen: 'IT Infrastructure', divisi: 'IT Infrastructure', jabatan: 'Network Engineer', lokasi: 'Kantor Pusat', statusInventaris: 'Ada', keteranganInventaris: 'Memegang 1 unit Monitor Samsung S24R350 (IT-MN-004).' },
+  { nik: 'AG-2023-042', nama: 'Dewi Lestari', departemen: 'HRD & GA', divisi: 'HRD & GA', jabatan: 'HR Specialist', lokasi: 'Distrik I', statusInventaris: 'Ada', keteranganInventaris: 'Memegang 1 unit HP ProDesk 400 G7 (IT-PC-005).' },
+  { nik: 'AG-2022-029', nama: 'Rizky Pratama', departemen: 'Operasional Kebun', divisi: 'Operasional Kebun', jabatan: 'Supervisor Operasional', lokasi: 'Distrik II', statusInventaris: 'Tidak', keteranganInventaris: 'Tidak ada perangkat IT pribadi yang tercatat atas nama karyawan.' }
 ];
 
 const DEFAULT_HARDWARE = [
@@ -607,53 +607,80 @@ const App = {
   },
 
   // --- CRUD: KARYAWAN ---
+  getKaryawanDepartemen(karyawan) {
+    return karyawan.departemen || karyawan.divisi || '-';
+  },
+
+  getKaryawanInventoryBadge(status) {
+    if (status === 'Ada') {
+      return '<span class="badge-inventory-status has-inventory">Ada</span>';
+    }
+    if (status === 'Tidak') {
+      return '<span class="badge-inventory-status no-inventory">Tidak</span>';
+    }
+    return '<span class="badge-inventory-status inventory-unknown">Belum dilengkapi</span>';
+  },
+
+  renderKaryawanTenure(karyawan) {
+    const startDate = karyawan.tanggal_mulai ? this.formatDate(karyawan.tanggal_mulai) : '-';
+    const summary = this.getTenureSummary(karyawan);
+    const endLine = karyawan.akhir_jabatan
+      ? `Selesai / Pensiun: ${this.formatDate(karyawan.akhir_jabatan)}`
+      : summary;
+    const summaryLine = karyawan.akhir_jabatan
+      ? `<div class="employee-tenure-summary${summary.includes('Peringatan:') ? ' is-warning' : ''}">${summary}</div>`
+      : '';
+    return `
+      <div class="employee-tenure-start">Mulai: ${startDate}</div>
+      <div class="employee-tenure-end">${endLine}</div>
+      ${summaryLine}
+      ${this.getEmploymentBadge(karyawan.status_jabatan)}
+    `;
+  },
+
+  getKaryawanTenureExportValue(karyawan) {
+    return this.getTenureSummary(karyawan);
+  },
+
   renderKaryawanTable() {
     const tbody = document.getElementById('table-karyawan-body');
     const keyword = this.globalKeyword.toLowerCase().trim();
 
     const filtered = State.karyawan.filter(k =>
-      (k.nama || '').toLowerCase().includes(keyword) ||
-      (k.nik || '').toLowerCase().includes(keyword) ||
-      (k.divisi || '').toLowerCase().includes(keyword) ||
-      (k.jabatan || '').toLowerCase().includes(keyword) ||
-      (k.tanggal_mulai || '').toLowerCase().includes(keyword) ||
-      (k.akhir_jabatan || '').toLowerCase().includes(keyword) ||
-      (k.status_jabatan || '').toLowerCase().includes(keyword)
+      [
+        k.nama, k.nik, k.jabatan, k.departemen, k.divisi, k.lokasi,
+        k.statusInventaris, k.keteranganInventaris,
+        k.tanggal_mulai, k.akhir_jabatan, k.status_jabatan
+      ].some(value => String(value || '').toLowerCase().includes(keyword))
     );
 
     document.getElementById('showing-karyawan').textContent = `Menampilkan ${filtered.length} dari ${State.karyawan.length} karyawan`;
 
     if (filtered.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="8" class="text-center" style="padding: 24px; color: var(--text-muted);">Tidak ada data karyawan yang cocok.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="10" class="text-center" style="padding: 24px; color: var(--text-muted);">Tidak ada data karyawan yang cocok.</td></tr>';
       return;
     }
 
-    tbody.innerHTML = filtered.map((k, index) => {
-      const deviceCount = State.hardware.filter(h => (h.pemegang || '').toLowerCase() === (k.nama || '').toLowerCase()).length;
-      return `
+    tbody.innerHTML = filtered.map((k, index) => `
         <tr>
           <td class="row-num">${index + 1}</td>
-          <td><span class="asset-tag">${this.escape(k.nik)}</span></td>
+          <td><span class="asset-tag">${this.escape(k.nik || '-')}</span></td>
           <td><strong>${this.escape(k.nama)}</strong></td>
-          <td>${this.escape(k.divisi)}</td>
           <td>${this.escape(k.jabatan)}</td>
-          <td>
-            <div class="tenure-cell">
-              <span>${this.formatDate(k.tanggal_mulai) || '-'}</span>
-              <small>${this.getTenureSummary(k)}</small>
-              ${this.getEmploymentBadge(k.status_jabatan)}
-            </div>
-          </td>
-          <td><span class="badge ${deviceCount > 0 ? 'badge-info' : 'badge-gender'}">${deviceCount} Perangkat</span></td>
+          <td>${this.escape(this.getKaryawanDepartemen(k))}</td>
+          <td class="employee-tenure-cell">${this.renderKaryawanTenure(k)}</td>
+          <td>${this.escape(k.lokasi || '-')}</td>
+          <td>${this.getKaryawanInventoryBadge(k.statusInventaris)}</td>
+          <td class="employee-inventory-notes">${this.escape(k.keteranganInventaris || '-')}</td>
           <td style="text-align: center;">
             <div class="action-buttons" style="justify-content: center;">
-              <button class="btn-icon edit" title="Edit Karyawan" onclick="app.editKaryawan('${k.id}')">✏️</button>
-              <button class="btn-icon delete" title="Hapus Karyawan" onclick="app.deleteKaryawan('${k.id}', '${this.escape(k.nama)}')">🗑️</button>
+              <button type="button" class="btn-icon view" title="Detail Karyawan" data-karyawan-action="detail" data-id="${this.escape(k.id)}">🔎</button>
+              <button type="button" class="btn-icon edit" title="Edit Karyawan" data-karyawan-action="edit" data-id="${this.escape(k.id)}">✏️</button>
+              <button type="button" class="btn-icon delete" title="Hapus Karyawan" data-karyawan-action="delete" data-id="${this.escape(k.id)}">🗑️</button>
             </div>
           </td>
         </tr>
-      `;
-    }).join('');
+      `).join('');
   },
 
   openKaryawanModal(karyawan = null) {
@@ -667,8 +694,11 @@ const App = {
       document.getElementById('karyawan-id').value = karyawan.id;
       document.getElementById('karyawan-nik').value = karyawan.nik;
       document.getElementById('karyawan-nama').value = karyawan.nama;
-      document.getElementById('karyawan-divisi').value = karyawan.divisi;
+      document.getElementById('karyawan-departemen').value = karyawan.departemen || karyawan.divisi || '';
       document.getElementById('karyawan-jabatan').value = karyawan.jabatan;
+      document.getElementById('karyawan-lokasi').value = karyawan.lokasi || '';
+      document.getElementById('karyawan-status-inventaris').value = karyawan.statusInventaris || '';
+      document.getElementById('karyawan-keterangan-inventaris').value = karyawan.keteranganInventaris || '';
       document.getElementById('karyawan-tanggal-mulai').value = karyawan.tanggal_mulai || '';
       document.getElementById('karyawan-akhir-jabatan').value = karyawan.akhir_jabatan || '';
       document.getElementById('karyawan-status-jabatan').value = karyawan.status_jabatan || 'Karyawan Tetap';
@@ -677,6 +707,7 @@ const App = {
       document.getElementById('karyawan-id').value = '';
       document.getElementById('karyawan-status-jabatan').value = 'Karyawan Tetap';
     }
+    this.updateKaryawanInventorySuggestion();
     this.openModal('modal-karyawan');
   },
 
@@ -687,8 +718,12 @@ const App = {
     const payload = {
       nik: document.getElementById('karyawan-nik').value.trim(),
       nama: document.getElementById('karyawan-nama').value.trim(),
-      divisi: document.getElementById('karyawan-divisi').value,
+      departemen: document.getElementById('karyawan-departemen').value.trim(),
+      divisi: document.getElementById('karyawan-departemen').value.trim(),
       jabatan: document.getElementById('karyawan-jabatan').value.trim(),
+      lokasi: document.getElementById('karyawan-lokasi').value.trim(),
+      statusInventaris: document.getElementById('karyawan-status-inventaris').value,
+      keteranganInventaris: document.getElementById('karyawan-keterangan-inventaris').value.trim(),
       tanggal_mulai: document.getElementById('karyawan-tanggal-mulai').value,
       akhir_jabatan: document.getElementById('karyawan-akhir-jabatan').value,
       status_jabatan: document.getElementById('karyawan-status-jabatan').value
@@ -727,12 +762,62 @@ const App = {
     if (item) this.openKaryawanModal(item);
   },
 
-  async deleteKaryawan(id, nama) {
+  showKaryawanDetail(id) {
+    const karyawan = State.karyawan.find(item => item.id === id);
+    if (!karyawan) return;
+
+    document.getElementById('detail-karyawan-nik').textContent = karyawan.nik || '-';
+    document.getElementById('detail-karyawan-nama').textContent = karyawan.nama || '-';
+    document.getElementById('detail-karyawan-jabatan').textContent = karyawan.jabatan || '-';
+    document.getElementById('detail-karyawan-departemen').textContent = this.getKaryawanDepartemen(karyawan);
+    document.getElementById('detail-karyawan-lokasi').textContent = karyawan.lokasi || '-';
+    document.getElementById('detail-karyawan-status-inventaris').innerHTML =
+      this.getKaryawanInventoryBadge(karyawan.statusInventaris);
+    document.getElementById('detail-karyawan-keterangan-inventaris').textContent =
+      karyawan.keteranganInventaris || '-';
+    document.getElementById('detail-karyawan-status-jabatan').innerHTML =
+      this.getEmploymentBadge(karyawan.status_jabatan);
+    document.getElementById('detail-karyawan-tanggal-mulai').textContent =
+      karyawan.tanggal_mulai ? this.formatDate(karyawan.tanggal_mulai) : 'Belum diisi';
+    document.getElementById('detail-karyawan-akhir-jabatan').textContent =
+      karyawan.akhir_jabatan ? this.formatDate(karyawan.akhir_jabatan) : 'Belum diatur';
+    document.getElementById('detail-karyawan-masa-jabatan').textContent =
+      this.getTenureSummary(karyawan);
+    this.openModal('modal-karyawan-detail');
+  },
+
+  updateKaryawanInventorySuggestion() {
+    const suggestionBox = document.getElementById('karyawan-inventory-suggestion');
+    const status = document.getElementById('karyawan-status-inventaris').value;
+    const employeeName = document.getElementById('karyawan-nama').value.trim();
+    suggestionBox.hidden = true;
+    delete suggestionBox.dataset.suggestion;
+    if (status !== 'Ada' || !employeeName) return;
+
+    const normalizedName = employeeName.toLowerCase();
+    const devices = State.hardware.filter(item =>
+      String(item.pemegang || '').trim().toLowerCase() === normalizedName
+    );
+    if (devices.length === 0) return;
+
+    const details = devices.map(item =>
+      `${item.jenis || 'Perangkat'} ${item.merek || ''} (${item.kode || 'tanpa kode'})`.trim()
+    );
+    const suggestion = `Memegang ${devices.length} unit: ${details.join('; ')}.`;
+    suggestionBox.dataset.suggestion = suggestion;
+    document.getElementById('karyawan-inventory-suggestion-text').textContent =
+      `Saran berdasarkan data Hardware: ${suggestion}`;
+    suggestionBox.hidden = false;
+  },
+
+  async deleteKaryawan(id) {
     if (!this.requireAdmin()) return;
-    if (confirm(`Yakin ingin menghapus data karyawan "${nama}" dari Cloud Firestore?`)) {
+    const karyawan = State.karyawan.find(item => item.id === id);
+    if (!karyawan) return;
+    if (confirm(`Yakin ingin menghapus data karyawan "${karyawan.nama}" dari Cloud Firestore?`)) {
       try {
         await deleteDoc(doc(db, 'karyawan', id));
-        await this.logActivity('Hapus', 'karyawan', nama);
+        await this.logActivity('Hapus', 'karyawan', `${karyawan.nama} (${karyawan.nik || '-'})`);
       } catch (err) {
         alert('Gagal menghapus karyawan: ' + err.message);
       }
@@ -753,7 +838,7 @@ const App = {
     options += '<optgroup label="Karyawan Terdaftar">';
     options += State.karyawan.map(k => {
       const isSelected = k.nama === selectedPemegang ? 'selected' : '';
-      return `<option value="${this.escape(k.nama)}" ${isSelected}>${this.escape(k.nama)} (${this.escape(k.divisi)})</option>`;
+      return `<option value="${this.escape(k.nama)}" ${isSelected}>${this.escape(k.nama)} (${this.escape(this.getKaryawanDepartemen(k))})</option>`;
     }).join('');
     options += '</optgroup>';
 
@@ -1442,19 +1527,38 @@ const App = {
 
     if (allAssets.length === 0) {
       tbody.innerHTML = '<tr><td colspan="8" class="text-center" style="padding: 24px; color: var(--text-muted);">Tidak ada aset yang terdaftar dalam audit.</td></tr>';
+    } else {
+      tbody.innerHTML = allAssets.map((item, index) => `
+        <tr>
+          <td class="row-num">${index + 1}</td>
+          <td><span class="asset-tag">${this.escape(item.kode)}</span></td>
+          <td><span class="badge ${item.kelompok === 'End-User Hardware' ? 'badge-info' : 'badge-gender male'}">${item.kelompok}</span></td>
+          <td><strong>${this.escape(item.nama)}</strong></td>
+          <td><span class="serial-num">${this.escape(item.sn)}</span></td>
+          <td style="font-size: 0.78rem;">${this.escape(item.koneksi)}</td>
+          <td>${this.escape(item.pj)}</td>
+          <td>${this.getStatusBadge(item.status)}</td>
+        </tr>
+      `).join('');
+    }
+
+    const employeeTbody = document.getElementById('table-audit-karyawan-body');
+    if (State.karyawan.length === 0) {
+      employeeTbody.innerHTML = '<tr><td colspan="9" class="text-center" style="padding: 24px; color: var(--text-muted);">Belum ada data karyawan.</td></tr>';
       return;
     }
 
-    tbody.innerHTML = allAssets.map((item, index) => `
+    employeeTbody.innerHTML = State.karyawan.map((karyawan, index) => `
       <tr>
         <td class="row-num">${index + 1}</td>
-        <td><span class="asset-tag">${this.escape(item.kode)}</span></td>
-        <td><span class="badge ${item.kelompok === 'End-User Hardware' ? 'badge-info' : 'badge-gender male'}">${item.kelompok}</span></td>
-        <td><strong>${this.escape(item.nama)}</strong></td>
-        <td><span class="serial-num">${this.escape(item.sn)}</span></td>
-        <td style="font-size: 0.78rem;">${this.escape(item.koneksi)}</td>
-        <td>${this.escape(item.pj)}</td>
-        <td>${this.getStatusBadge(item.status)}</td>
+        <td><span class="asset-tag">${this.escape(karyawan.nik || '-')}</span></td>
+        <td><strong>${this.escape(karyawan.nama || '-')}</strong></td>
+        <td>${this.escape(karyawan.jabatan || '-')}</td>
+        <td>${this.escape(this.getKaryawanDepartemen(karyawan))}</td>
+        <td class="employee-tenure-cell">${this.renderKaryawanTenure(karyawan)}</td>
+        <td>${this.escape(karyawan.lokasi || '-')}</td>
+        <td>${this.getKaryawanInventoryBadge(karyawan.statusInventaris)}</td>
+        <td class="employee-inventory-notes">${this.escape(karyawan.keteranganInventaris || '-')}</td>
       </tr>
     `).join('');
   },
@@ -1482,9 +1586,13 @@ const App = {
   },
 
   exportKaryawanCSV() {
-    let csv = 'No,NIK/NIP,Nama Lengkap,Divisi/Departemen,Jabatan,Tanggal Mulai,Akhir Masa Jabatan,Status Kepegawaian\n';
+    let csv = 'No,NIK/NIP,Nama Karyawan,Jabatan,Departemen/Bagian,Masa Jabatan,Tanggal Mulai Menjabat,Akhir Masa Jabatan / Estimasi Pensiun,Status Kepegawaian,Lokasi,Status Inventaris IT,Penjelasan Inventaris IT\n';
     State.karyawan.forEach((k, idx) => {
-      csv += [idx + 1, k.nik, k.nama, k.divisi, k.jabatan, k.tanggal_mulai, k.akhir_jabatan, k.status_jabatan]
+      csv += [
+        idx + 1, k.nik, k.nama, k.jabatan, this.getKaryawanDepartemen(k),
+        this.getKaryawanTenureExportValue(k), k.tanggal_mulai, k.akhir_jabatan,
+        this.getEmploymentStatusLabel(k.status_jabatan), k.lokasi, k.statusInventaris, k.keteranganInventaris
+      ]
         .map(value => this.csvCell(value)).join(',') + '\n';
     });
     this.downloadCSV('Data_Karyawan_Agrinas.csv', csv);
@@ -1531,6 +1639,16 @@ const App = {
     });
     State.network.forEach(n => {
       csv += `"${n.kode}","Network & Server","${n.kategori} - ${n.nama}","-","${n.ip || '-'}","${n.mac || '-'}","${n.lokasi}","${n.status}"\n`;
+    });
+    csv += '\n\nData Karyawan & Inventaris IT\n';
+    csv += 'No,NIK/NIP,Nama Karyawan,Jabatan,Departemen/Bagian,Masa Jabatan,Tanggal Mulai Menjabat,Akhir Masa Jabatan / Estimasi Pensiun,Status Kepegawaian,Lokasi,Status Inventaris IT,Penjelasan Inventaris IT\n';
+    State.karyawan.forEach((karyawan, index) => {
+      csv += [
+        index + 1, karyawan.nik, karyawan.nama, karyawan.jabatan, this.getKaryawanDepartemen(karyawan),
+        this.getKaryawanTenureExportValue(karyawan), karyawan.tanggal_mulai, karyawan.akhir_jabatan,
+        this.getEmploymentStatusLabel(karyawan.status_jabatan), karyawan.lokasi,
+        karyawan.statusInventaris, karyawan.keteranganInventaris
+      ].map(value => this.csvCell(value)).join(',') + '\n';
     });
     this.downloadCSV('Laporan_Audit_Aset_IT_Agrinas.csv', csv);
   },
@@ -1668,13 +1786,11 @@ const App = {
   searchAcrossDatabase(keyword) {
     const k = (keyword || '').toLowerCase().trim();
     const matchedKaryawan = State.karyawan.filter(item =>
-      (item.nama || '').toLowerCase().includes(k) ||
-      (item.nik || '').toLowerCase().includes(k) ||
-      (item.divisi || '').toLowerCase().includes(k) ||
-      (item.jabatan || '').toLowerCase().includes(k) ||
-      (item.tanggal_mulai || '').toLowerCase().includes(k) ||
-      (item.akhir_jabatan || '').toLowerCase().includes(k) ||
-      (item.status_jabatan || '').toLowerCase().includes(k)
+      [
+        item.nama, item.nik, item.jabatan, item.departemen, item.divisi, item.lokasi,
+        item.statusInventaris, item.keteranganInventaris,
+        item.tanggal_mulai, item.akhir_jabatan, item.status_jabatan
+      ].some(value => String(value || '').toLowerCase().includes(k))
     );
 
     const matchedHardware = State.hardware.filter(item =>
@@ -1746,7 +1862,7 @@ const App = {
           <div class="search-result-item" onclick="app.selectSearchResult('karyawan')">
             <div class="item-main">
               <div class="item-title">${this.escape(k.nama)} &bull; <small style="color:var(--text-muted)">${this.escape(k.nik)}</small></div>
-              <div class="item-sub">${this.escape(k.jabatan)} &bull; ${this.escape(k.divisi)}</div>
+              <div class="item-sub">${this.escape(k.jabatan)} &bull; ${this.escape(this.getKaryawanDepartemen(k))} &bull; ${this.escape(k.lokasi || '-')}</div>
             </div>
             <span class="btn btn-outline btn-sm">Lihat</span>
           </div>
@@ -1898,24 +2014,51 @@ const App = {
   },
 
   getTenureSummary(karyawan) {
-    if (karyawan.status_jabatan === 'Karyawan Tetap' || (!karyawan.status_jabatan && !karyawan.akhir_jabatan)) return 'Tetap';
-    if (!karyawan.akhir_jabatan) return 'Tanpa tanggal akhir';
+    const status = this.getEmploymentStatusLabel(karyawan.status_jabatan);
+    if (!karyawan.akhir_jabatan) {
+      if (status === 'Karyawan Tetap') return 'Tetap (Belum diatur tanggal pensiun)';
+      if (status === 'Pensiun') return 'Tanggal pensiun belum diatur';
+      return 'Tanggal akhir masa kerja belum diatur';
+    }
+
     const today = new Date(`${this.getTodayDate()}T00:00:00`);
     const endDate = new Date(`${karyawan.akhir_jabatan}T00:00:00`);
     if (Number.isNaN(endDate.getTime())) return 'Tanggal akhir tidak valid';
-    const daysRemaining = Math.ceil((endDate.getTime() - today.getTime()) / 86400000);
+    const daysRemaining = Math.round((endDate.getTime() - today.getTime()) / 86400000);
     const endDateLabel = this.formatDate(karyawan.akhir_jabatan);
-    if (daysRemaining < 0) return `Akhir ${endDateLabel} - berakhir ${Math.abs(daysRemaining)} hari lalu`;
-    if (daysRemaining === 0) return `Akhir ${endDateLabel} - berakhir hari ini`;
-    return `Akhir ${endDateLabel} - sisa ${daysRemaining} hari`;
+    if (daysRemaining < 0) {
+      const endedLabel = status === 'Pensiun' ? `Pensiun sejak ${endDateLabel}` : `Masa kerja berakhir ${endDateLabel}`;
+      return `${endedLabel} (${Math.abs(daysRemaining)} hari lalu)`;
+    }
+    if (daysRemaining === 0) return 'Berakhir hari ini';
+
+    const sixMonthsLater = new Date(today);
+    sixMonthsLater.setDate(1);
+    sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
+    const lastDayOfMonth = new Date(
+      sixMonthsLater.getFullYear(),
+      sixMonthsLater.getMonth() + 1,
+      0
+    ).getDate();
+    sixMonthsLater.setDate(Math.min(today.getDate(), lastDayOfMonth));
+
+    const warning = endDate < sixMonthsLater ? ' • Peringatan: sisa waktu kurang dari 6 bulan' : '';
+    return `Sisa masa kerja ${daysRemaining} hari${warning}`;
+  },
+
+  getEmploymentStatusLabel(status) {
+    if (status === 'Kontrak (PKWT)') return 'Karyawan Kontrak (PKWT)';
+    if (status === 'Selesai / Pensiun') return 'Pensiun';
+    return status || 'Karyawan Tetap';
   },
 
   getEmploymentBadge(status) {
-    const value = status || 'Karyawan Tetap';
+    const value = this.getEmploymentStatusLabel(status);
     let style = 'badge-success';
-    if (value === 'Kontrak (PKWT)') style = 'badge-info';
-    if (value === 'Masa Percobaan') style = 'badge-warning';
-    if (value === 'Selesai / Pensiun') style = 'badge-danger';
+    if (value === 'Karyawan Kontrak (PKWT)' || value === 'Mendekati Pensiun' || value === 'Masa Percobaan') {
+      style = 'badge-warning';
+    }
+    if (value === 'Pensiun') style = 'badge-danger';
     return `<span class="badge ${style}">${this.escape(value)}</span>`;
   },
 
@@ -2112,6 +2255,23 @@ const App = {
       modal.addEventListener('click', (e) => {
         if (e.target === modal) modal.classList.remove('active');
       });
+    });
+
+    document.getElementById('table-karyawan-body').addEventListener('click', (e) => {
+      const button = e.target.closest('[data-karyawan-action]');
+      if (!button) return;
+      const { id } = button.dataset;
+      const action = button.dataset.karyawanAction;
+      if (action === 'detail') this.showKaryawanDetail(id);
+      if (action === 'edit') this.editKaryawan(id);
+      if (action === 'delete') this.deleteKaryawan(id);
+    });
+
+    document.getElementById('karyawan-nama').addEventListener('input', () => this.updateKaryawanInventorySuggestion());
+    document.getElementById('karyawan-status-inventaris').addEventListener('change', () => this.updateKaryawanInventorySuggestion());
+    document.getElementById('btn-use-karyawan-inventory-suggestion').addEventListener('click', () => {
+      const suggestion = document.getElementById('karyawan-inventory-suggestion').dataset.suggestion;
+      if (suggestion) document.getElementById('karyawan-keterangan-inventaris').value = suggestion;
     });
 
     document.getElementById('form-karyawan').addEventListener('submit', (e) => this.saveKaryawan(e));
