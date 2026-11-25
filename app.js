@@ -23,7 +23,11 @@ import {
   updateDoc,
   deleteDoc,
   getDocs,
-  onSnapshot
+  getDoc,
+  onSnapshot,
+  query,
+  orderBy,
+  limit
 } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 
 // =======================================================================
@@ -44,6 +48,9 @@ const firebaseConfig = {
 const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
+const ADMIN_EMAIL = 'admin@agrinas.co.id';
+const AUDIT_SIGNATURE_ADMIN_KEY = 'agrinas.auditSignature.admin';
+const AUDIT_SIGNATURE_MANAGER_KEY = 'agrinas.auditSignature.manager';
 
 // =======================================================================
 // 2. DATA AWAL (SEED DUMMY JIKA FIRESTORE MASIH KOSONG)
@@ -77,11 +84,15 @@ const DEFAULT_NETWORK = [
 // =======================================================================
 const State = {
   user: null,
+  adminEmails: [ADMIN_EMAIL],
   karyawan: [],
   hardware: [],
   network: [],
   kendaraan: [],
   kehadiran: [],
+  activityLogs: [],
+  hardwareLoaded: false,
+  networkLoaded: false,
   unsubscribers: []
 };
 
@@ -94,13 +105,16 @@ const App = {
   attendanceDateFilter: '',
   globalKeyword: '',
   dateRefreshTimer: null,
+  assetDeepLinkHandled: false,
 
   init() {
     this.updateHeaderDate();
+    this.loadAuditSignatureSettings();
     if (!this.dateRefreshTimer) {
       this.dateRefreshTimer = setInterval(() => this.updateHeaderDate(), 60000);
     }
     this.bindEvents();
+    this.initializePublicQr();
     this.listenAuthState();
   },
 
@@ -110,12 +124,15 @@ const App = {
     onAuthStateChanged(auth, async (user) => {
       if (user) {
         State.user = user;
+        await this.loadAdminEmails();
+        if (auth.currentUser !== user) return;
         loginOverlay.style.display = 'none';
         this.updateProfileUI(user);
         await this.seedIfEmpty();
         this.startRealtimeListeners();
       } else {
         State.user = null;
+        document.body.classList.remove('role-viewer');
         this.stopRealtimeListeners();
         loginOverlay.style.display = 'flex';
       }
@@ -157,28 +174,160 @@ const App = {
 
   updateProfileUI(user) {
     const displayName = user.displayName || 'Admin IT';
-    const email = user.email || 'admin@agrinas.co.id';
+    const email = user.email || ADMIN_EMAIL;
     const initial = displayName.charAt(0).toUpperCase();
 
     document.getElementById('header-user-avatar').textContent = initial;
     document.getElementById('info-modal-avatar').textContent = initial;
     document.getElementById('header-user-name').textContent = displayName;
-    document.getElementById('header-user-role').textContent = 'IT Department';
 
     document.getElementById('dropdown-user-name').textContent = displayName;
     document.getElementById('dropdown-user-role').textContent = email;
 
     document.getElementById('info-account-name').textContent = displayName;
-    document.getElementById('info-account-role').textContent = 'IT Department';
     document.getElementById('info-account-email').textContent = email;
 
     document.getElementById('settings-name').value = displayName;
     document.getElementById('settings-email').value = email;
     document.getElementById('settings-password').value = '';
+    this.updateRoleUI(user);
+    this.renderAdminEmailList();
+  },
+
+  updateRoleUI(user) {
+    const isAdmin = this.isAdmin(user);
+    const roleLabel = isAdmin ? 'Admin IT (Full Access)' : 'Viewer / Pimpinan (Read-Only)';
+    const headerRole = document.getElementById('header-user-role');
+    const accountRole = document.getElementById('info-account-role');
+
+    headerRole.textContent = roleLabel;
+    headerRole.classList.toggle('role-admin', isAdmin);
+    headerRole.classList.toggle('role-viewer', !isAdmin);
+    document.body.classList.toggle('role-viewer', !isAdmin);
+    accountRole.textContent = roleLabel;
+    accountRole.classList.toggle('badge-success', isAdmin);
+    accountRole.classList.toggle('badge-info', !isAdmin);
+  },
+
+  isAdmin(user = State.user) {
+    return Boolean(
+      user &&
+      user.email &&
+      State.adminEmails.includes(user.email.trim().toLowerCase())
+    );
+  },
+
+  normalizeAdminEmails(emails) {
+    if (!Array.isArray(emails)) return [ADMIN_EMAIL];
+    const normalized = [...new Set(
+      emails
+        .filter(email => typeof email === 'string')
+        .map(email => email.trim().toLowerCase())
+        .filter(Boolean)
+    )];
+    return normalized.length ? normalized : [ADMIN_EMAIL];
+  },
+
+  async loadAdminEmails() {
+    try {
+      const snapshot = await getDoc(doc(db, 'settings', 'roles'));
+      State.adminEmails = this.normalizeAdminEmails(
+        snapshot.exists() ? snapshot.data().adminEmails : null
+      );
+    } catch (error) {
+      console.error('Gagal membaca daftar Admin IT dari Firestore:', error);
+      State.adminEmails = [ADMIN_EMAIL];
+    }
+  },
+
+  renderAdminEmailList() {
+    const list = document.getElementById('admin-email-list');
+    if (!list) return;
+    list.innerHTML = State.adminEmails.map(email => `
+      <li class="admin-email-item">
+        <span>${this.escape(email)}</span>
+        <button type="button" class="btn btn-outline btn-remove-admin" data-remove-admin="${this.escape(email)}"
+          ${State.adminEmails.length <= 1 ? 'disabled title="Minimal satu Admin IT harus tetap terdaftar"' : ''}>
+          Hapus
+        </button>
+      </li>
+    `).join('');
+  },
+
+  setAdminAccessStatus(message, isError = false) {
+    const status = document.getElementById('admin-access-status');
+    if (!status) return;
+    status.textContent = message;
+    status.classList.toggle('error', isError);
+  },
+
+  async saveAdminEmailList(emails) {
+    const normalized = this.normalizeAdminEmails(emails);
+    await setDoc(doc(db, 'settings', 'roles'), { adminEmails: normalized }, { merge: true });
+    State.adminEmails = normalized;
+    this.updateRoleUI(State.user);
+    this.renderAdminEmailList();
+  },
+
+  async addAdminEmail(e) {
+    e.preventDefault();
+    if (!this.requireAdmin()) return;
+
+    const input = document.getElementById('admin-access-email');
+    const email = input.value.trim().toLowerCase();
+    if (!input.checkValidity()) {
+      input.reportValidity();
+      return;
+    }
+    if (State.adminEmails.includes(email)) {
+      this.setAdminAccessStatus('Email tersebut sudah terdaftar sebagai Admin IT.', true);
+      return;
+    }
+
+    try {
+      await this.saveAdminEmailList([...State.adminEmails, email]);
+      input.value = '';
+      this.setAdminAccessStatus(`Akses Admin IT ditambahkan untuk ${email}.`);
+    } catch (error) {
+      console.error('Gagal menambahkan Admin IT:', error);
+      this.setAdminAccessStatus('Gagal menyimpan perubahan akses Admin ke Firestore.', true);
+    }
+  },
+
+  async removeAdminEmail(email) {
+    if (!this.requireAdmin()) return;
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!State.adminEmails.includes(normalizedEmail)) return;
+    if (State.adminEmails.length <= 1) {
+      this.setAdminAccessStatus('Minimal satu Admin IT harus tetap terdaftar.', true);
+      return;
+    }
+    if (!confirm(`Hapus ${normalizedEmail} dari daftar Admin IT?`)) return;
+
+    const currentEmail = State.user.email || '';
+    const wasCurrentUserRemoved = currentEmail.trim().toLowerCase() === normalizedEmail;
+    try {
+      await this.saveAdminEmailList(State.adminEmails.filter(adminEmail => adminEmail !== normalizedEmail));
+      if (wasCurrentUserRemoved) {
+        alert('Akses Admin IT akun ini telah dilepas. Anda tetap dapat menggunakan akses Viewer.');
+      } else {
+        this.setAdminAccessStatus(`Akses Admin IT untuk ${normalizedEmail} telah dihapus.`);
+      }
+    } catch (error) {
+      console.error('Gagal menghapus Admin IT:', error);
+      this.setAdminAccessStatus('Gagal menyimpan perubahan akses Admin ke Firestore.', true);
+    }
+  },
+
+  requireAdmin() {
+    if (this.isAdmin()) return true;
+    alert('Aksi ini hanya tersedia untuk Admin IT.');
+    return false;
   },
 
   // --- SEED DATA AWAL JIKA KOLEKSI MASIH KOSONG ---
   async seedIfEmpty() {
+    if (!this.isAdmin()) return;
     try {
       const kSnap = await getDocs(collection(db, 'karyawan'));
       if (kSnap.empty) {
@@ -206,6 +355,20 @@ const App = {
   // --- REAL-TIME FIRESTORE LISTENERS ---
   startRealtimeListeners() {
     this.stopRealtimeListeners();
+    this.assetDeepLinkHandled = false;
+    State.hardwareLoaded = false;
+    State.networkLoaded = false;
+    this.renderDashboard();
+
+    const unsubAdminRoles = onSnapshot(doc(db, 'settings', 'roles'), (snapshot) => {
+      State.adminEmails = this.normalizeAdminEmails(
+        snapshot.exists() ? snapshot.data().adminEmails : null
+      );
+      this.renderAdminEmailList();
+      if (State.user) this.updateRoleUI(State.user);
+    }, (error) => {
+      console.error('Gagal menyinkronkan daftar Admin IT:', error);
+    });
 
     const unsubKaryawan = onSnapshot(collection(db, 'karyawan'), (snapshot) => {
       State.karyawan = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -214,12 +377,16 @@ const App = {
 
     const unsubHardware = onSnapshot(collection(db, 'hardware'), (snapshot) => {
       State.hardware = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      State.hardwareLoaded = true;
       this.renderAll();
+      this.resolveAssetDeepLink();
     });
 
     const unsubNetwork = onSnapshot(collection(db, 'network'), (snapshot) => {
       State.network = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      State.networkLoaded = true;
       this.renderAll();
+      this.resolveAssetDeepLink();
     });
 
     const unsubKendaraan = onSnapshot(collection(db, 'kendaraan'), (snapshot) => {
@@ -236,12 +403,33 @@ const App = {
       console.error('Gagal menyinkronkan data kehadiran:', error);
     });
 
-    State.unsubscribers = [unsubKaryawan, unsubHardware, unsubNetwork, unsubKendaraan, unsubKehadiran];
+    const activityQuery = query(
+      collection(db, 'activity_logs'),
+      orderBy('timestamp', 'desc'),
+      limit(8)
+    );
+    const unsubActivityLogs = onSnapshot(activityQuery, (snapshot) => {
+      State.activityLogs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      this.renderDashboard();
+    }, (error) => {
+      console.error('Gagal menyinkronkan riwayat aktivitas:', error);
+    });
+
+    State.unsubscribers = [
+      unsubAdminRoles,
+      unsubKaryawan,
+      unsubHardware,
+      unsubNetwork,
+      unsubKendaraan,
+      unsubKehadiran,
+      unsubActivityLogs
+    ];
   },
 
   stopRealtimeListeners() {
     State.unsubscribers.forEach(unsub => unsub());
     State.unsubscribers = [];
+    State.activityLogs = [];
   },
 
   // --- SPA NAVIGATION ---
@@ -386,6 +574,35 @@ const App = {
         <button class="btn btn-outline btn-sm" onclick="app.navigateTo('audit')">Laporan</button>
       </div>
     `;
+
+    const collectionNames = {
+      karyawan: 'Karyawan',
+      hardware: 'Hardware',
+      network: 'Network & Server',
+      kendaraan: 'Kendaraan',
+      kehadiran: 'Kehadiran'
+    };
+    activitiesHtml += '<h3 class="activity-log-heading">Riwayat Perubahan Data</h3>';
+    if (State.activityLogs.length === 0) {
+      activitiesHtml += '<div class="activity-log-empty">Belum ada aktivitas perubahan data.</div>';
+    } else {
+      activitiesHtml += State.activityLogs.slice(0, 8).map(log => {
+        const date = new Date(Number(log.timestamp));
+        const timestamp = Number.isNaN(date.getTime())
+          ? '-'
+          : date.toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' });
+        const entityName = collectionNames[log.collection] || log.collection || 'Data';
+        return `
+          <div class="activity-item activity-log-item">
+            <div>
+              <div class="item-title">${this.escape(log.action)} · ${this.escape(entityName)}</div>
+              <div class="item-time">${this.escape(log.item)} · ${this.escape(log.actor)}</div>
+            </div>
+            <time class="activity-log-timestamp">${this.escape(timestamp)}</time>
+          </div>
+        `;
+      }).join('');
+    }
     activityList.innerHTML = activitiesHtml;
   },
 
@@ -440,6 +657,7 @@ const App = {
   },
 
   openKaryawanModal(karyawan = null) {
+    if (!this.requireAdmin()) return;
     const title = document.getElementById('modal-karyawan-title');
     const form = document.getElementById('form-karyawan');
     form.reset();
@@ -464,6 +682,7 @@ const App = {
 
   async saveKaryawan(e) {
     e.preventDefault();
+    if (!this.requireAdmin()) return;
     const id = document.getElementById('karyawan-id').value;
     const payload = {
       nik: document.getElementById('karyawan-nik').value.trim(),
@@ -479,6 +698,7 @@ const App = {
       if (id) {
         const oldItem = State.karyawan.find(k => k.id === id);
         await updateDoc(doc(db, 'karyawan', id), payload);
+        await this.logActivity('Edit', 'karyawan', `${payload.nama} (${payload.nik})`);
 
         if (oldItem && oldItem.nama !== payload.nama) {
           const affectedHw = State.hardware.filter(h => (h.pemegang || '').toLowerCase() === oldItem.nama.toLowerCase());
@@ -494,6 +714,7 @@ const App = {
         }
       } else {
         await addDoc(collection(db, 'karyawan'), payload);
+        await this.logActivity('Tambah', 'karyawan', `${payload.nama} (${payload.nik})`);
       }
       this.closeModal('modal-karyawan');
     } catch (err) {
@@ -507,9 +728,11 @@ const App = {
   },
 
   async deleteKaryawan(id, nama) {
+    if (!this.requireAdmin()) return;
     if (confirm(`Yakin ingin menghapus data karyawan "${nama}" dari Cloud Firestore?`)) {
       try {
         await deleteDoc(doc(db, 'karyawan', id));
+        await this.logActivity('Hapus', 'karyawan', nama);
       } catch (err) {
         alert('Gagal menghapus karyawan: ' + err.message);
       }
@@ -609,6 +832,7 @@ const App = {
   },
 
   openHardwareModal(hardware = null) {
+    if (!this.requireAdmin()) return;
     const title = document.getElementById('modal-hardware-title');
     const form = document.getElementById('form-hardware');
     form.reset();
@@ -637,6 +861,7 @@ const App = {
 
   async saveHardware(e) {
     e.preventDefault();
+    if (!this.requireAdmin()) return;
     const id = document.getElementById('hardware-id').value;
     const rawMac = document.getElementById('hardware-mac').value.trim();
     const payload = {
@@ -656,6 +881,7 @@ const App = {
       } else {
         await addDoc(collection(db, 'hardware'), payload);
       }
+      await this.logActivity(id ? 'Edit' : 'Tambah', 'hardware', `${payload.kode} - ${payload.jenis}`);
       this.closeModal('modal-hardware');
     } catch (err) {
       alert('Gagal menyimpan perangkat hardware: ' + err.message);
@@ -668,9 +894,11 @@ const App = {
   },
 
   async deleteHardware(id, kode) {
+    if (!this.requireAdmin()) return;
     if (confirm(`Yakin ingin menghapus perangkat hardware [${kode}] dari Cloud Firestore?`)) {
       try {
         await deleteDoc(doc(db, 'hardware', id));
+        await this.logActivity('Hapus', 'hardware', kode);
       } catch (err) {
         alert('Gagal menghapus perangkat: ' + err.message);
       }
@@ -721,6 +949,7 @@ const App = {
   },
 
   openNetworkModal(network = null) {
+    if (!this.requireAdmin()) return;
     const title = document.getElementById('modal-network-title');
     const form = document.getElementById('form-network');
     form.reset();
@@ -744,6 +973,7 @@ const App = {
 
   async saveNetwork(e) {
     e.preventDefault();
+    if (!this.requireAdmin()) return;
     const id = document.getElementById('network-id').value;
     const rawIp = document.getElementById('network-ip').value.trim();
     const rawMac = document.getElementById('network-mac').value.trim();
@@ -764,6 +994,7 @@ const App = {
       } else {
         await addDoc(collection(db, 'network'), payload);
       }
+      await this.logActivity(id ? 'Edit' : 'Tambah', 'network', `${payload.kode} - ${payload.nama}`);
       this.closeModal('modal-network');
     } catch (err) {
       alert('Gagal menyimpan perangkat jaringan: ' + err.message);
@@ -776,12 +1007,91 @@ const App = {
   },
 
   async deleteNetwork(id, kode) {
+    if (!this.requireAdmin()) return;
     if (confirm(`Yakin ingin menghapus perangkat jaringan [${kode}] dari Cloud Firestore?`)) {
       try {
         await deleteDoc(doc(db, 'network', id));
+        await this.logActivity('Hapus', 'network', kode);
       } catch (err) {
         alert('Gagal menghapus perangkat jaringan: ' + err.message);
       }
+    }
+  },
+
+  resolveAssetDeepLink() {
+    if (this.assetDeepLinkHandled || !State.hardwareLoaded || !State.networkLoaded) return;
+    const assetCode = new URLSearchParams(window.location.search).get('aset');
+    if (!assetCode) {
+      this.assetDeepLinkHandled = true;
+      return;
+    }
+
+    const normalizedCode = assetCode.trim().toLowerCase();
+    const hardware = State.hardware.find(item =>
+      String(item.kode || '').trim().toLowerCase() === normalizedCode
+    );
+    const network = State.network.find(item =>
+      String(item.kode || '').trim().toLowerCase() === normalizedCode
+    );
+    const type = hardware ? 'hardware' : network ? 'network' : '';
+    const item = hardware || network;
+    this.assetDeepLinkHandled = true;
+
+    if (!item) {
+      alert(`Aset dengan kode "${assetCode}" tidak ditemukan.`);
+      return;
+    }
+    this.navigateTo(type);
+    this.openAssetQr(type, item.id);
+  },
+
+  initializePublicQr() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('qr') !== '1') return;
+
+    const publicData = {
+      kode: (params.get('kode') || '').trim().slice(0, 80),
+      jenis: (params.get('jenis') || '').trim().slice(0, 100),
+      merk: (params.get('merk') || '').trim().slice(0, 140),
+      pic: (params.get('pic') || '').trim().slice(0, 120),
+      status: (params.get('status') || '').trim().slice(0, 80)
+    };
+
+    document.getElementById('public-qr-code').textContent = publicData.kode || '-';
+    document.getElementById('public-qr-type').textContent = publicData.jenis || '-';
+    document.getElementById('public-qr-model').textContent = publicData.merk || '-';
+    document.getElementById('public-qr-pic').textContent = publicData.pic || '-';
+    document.getElementById('public-qr-status').innerHTML = this.getStatusBadge(
+      publicData.status || 'Status tidak tersedia'
+    );
+
+    const reportLink = document.getElementById('public-qr-report');
+    if (publicData.kode) {
+      const reportMessage = `Halo IT Support, saya ingin melaporkan kendala pada aset ${publicData.kode} (${publicData.jenis || 'jenis tidak diketahui'}).`;
+      const whatsappUrl = new URL('https://wa.me/');
+      whatsappUrl.searchParams.set('text', reportMessage);
+      reportLink.href = whatsappUrl.toString();
+      reportLink.removeAttribute('aria-disabled');
+      reportLink.tabIndex = 0;
+    } else {
+      const error = document.getElementById('public-qr-error');
+      error.textContent = 'Kode aset tidak tersedia pada tautan QR ini. Silakan hubungi Admin IT.';
+      error.hidden = false;
+      reportLink.removeAttribute('href');
+      reportLink.setAttribute('aria-disabled', 'true');
+      reportLink.tabIndex = -1;
+    }
+
+    const overlay = document.getElementById('public-qr-overlay');
+    overlay.hidden = false;
+    document.getElementById('btn-close-public-qr').focus();
+  },
+
+  closePublicQr() {
+    document.getElementById('public-qr-overlay').hidden = true;
+    const loginOverlay = document.getElementById('login-overlay');
+    if (window.getComputedStyle(loginOverlay).display !== 'none') {
+      document.getElementById('login-email').focus();
     }
   },
 
@@ -803,15 +1113,18 @@ const App = {
       kode: item.kode || '-',
       nama: type === 'hardware' ? `${item.jenis || ''} ${item.merek || ''}`.trim() : item.nama || '-',
       model: type === 'hardware' ? item.merek || '-' : item.nama || '-',
-      pemegang: type === 'hardware' ? item.pemegang || '-' : item.pemegang || item.lokasi || '-'
+      pemegang: type === 'hardware' ? item.pemegang || '-' : item.pemegang || item.lokasi || '-',
+      jenis: type === 'hardware' ? item.jenis || 'Hardware' : item.kategori || 'Network',
+      status: item.status || '-'
     };
     const holderLabel = type === 'hardware' ? 'Pemegang' : 'Pemegang / Lokasi';
-    const qrText = [
-      `Kode Aset: ${labelData.kode}`,
-      `Nama Perangkat: ${labelData.nama}`,
-      `Merek/Tipe: ${labelData.model}`,
-      `${holderLabel}: ${labelData.pemegang}`
-    ].join('\n');
+    const qrUrl = new URL('https://iventarisagrinas.my.id/');
+    qrUrl.searchParams.set('qr', '1');
+    qrUrl.searchParams.set('kode', labelData.kode);
+    qrUrl.searchParams.set('jenis', labelData.jenis);
+    qrUrl.searchParams.set('merk', labelData.model);
+    qrUrl.searchParams.set('pic', labelData.pemegang);
+    qrUrl.searchParams.set('status', labelData.status);
 
     document.getElementById('qr-asset-code').textContent = labelData.kode;
     document.getElementById('qr-asset-name').textContent = labelData.nama;
@@ -821,7 +1134,7 @@ const App = {
     const qrContainer = document.getElementById('asset-qr-code');
     qrContainer.replaceChildren();
     new window.QRCode(qrContainer, {
-      text: qrText,
+      text: qrUrl.toString(),
       width: 150,
       height: 150,
       correctLevel: window.QRCode.CorrectLevel.M
@@ -903,6 +1216,7 @@ const App = {
   },
 
   openKendaraanModal(kendaraan = null) {
+    if (!this.requireAdmin()) return;
     const form = document.getElementById('form-kendaraan');
     form.reset();
     this.populateKendaraanPemegangDropdown(kendaraan ? kendaraan.pemegang : '');
@@ -921,6 +1235,7 @@ const App = {
 
   async saveKendaraan(e) {
     e.preventDefault();
+    if (!this.requireAdmin()) return;
     const id = document.getElementById('kendaraan-id').value;
     const payload = {
       no_polisi: document.getElementById('kendaraan-no-polisi').value.trim().toUpperCase(),
@@ -935,6 +1250,7 @@ const App = {
     try {
       if (id) await updateDoc(doc(db, 'kendaraan', id), payload);
       else await addDoc(collection(db, 'kendaraan'), payload);
+      await this.logActivity(id ? 'Edit' : 'Tambah', 'kendaraan', `${payload.no_polisi} - ${payload.merk_tipe}`);
       this.closeModal('modal-kendaraan');
     } catch (err) {
       alert('Gagal menyimpan data kendaraan: ' + err.message);
@@ -947,10 +1263,12 @@ const App = {
   },
 
   async deleteKendaraan(id) {
+    if (!this.requireAdmin()) return;
     const item = State.kendaraan.find(kendaraan => kendaraan.id === id);
     if (!item || !confirm(`Yakin ingin menghapus kendaraan [${item.no_polisi}] dari Cloud Firestore?`)) return;
     try {
       await deleteDoc(doc(db, 'kendaraan', id));
+      await this.logActivity('Hapus', 'kendaraan', `${item.no_polisi} - ${item.merk_tipe}`);
     } catch (err) {
       alert('Gagal menghapus data kendaraan: ' + err.message);
     }
@@ -1011,6 +1329,7 @@ const App = {
   },
 
   openKehadiranModal(kehadiran = null) {
+    if (!this.requireAdmin()) return;
     const form = document.getElementById('form-kehadiran');
     form.reset();
     this.populateKehadiranKaryawanDropdown(
@@ -1031,6 +1350,7 @@ const App = {
 
   async saveKehadiran(e) {
     e.preventDefault();
+    if (!this.requireAdmin()) return;
     const id = document.getElementById('kehadiran-id').value;
     const employeeSelect = document.getElementById('kehadiran-karyawan');
     const selectedEmployee = employeeSelect.options[employeeSelect.selectedIndex];
@@ -1048,6 +1368,11 @@ const App = {
     try {
       if (id) await updateDoc(doc(db, 'kehadiran', id), payload);
       else await addDoc(collection(db, 'kehadiran'), payload);
+      await this.logActivity(
+        id ? 'Edit' : 'Tambah',
+        'kehadiran',
+        `${payload.nama_karyawan} (${payload.tanggal})`
+      );
       this.closeModal('modal-kehadiran');
     } catch (err) {
       alert('Gagal menyimpan data kehadiran: ' + err.message);
@@ -1060,10 +1385,12 @@ const App = {
   },
 
   async deleteKehadiran(id) {
+    if (!this.requireAdmin()) return;
     const item = State.kehadiran.find(kehadiran => kehadiran.id === id);
     if (!item || !confirm(`Yakin ingin menghapus catatan kehadiran ${item.nama_karyawan} tanggal ${item.tanggal}?`)) return;
     try {
       await deleteDoc(doc(db, 'kehadiran', id));
+      await this.logActivity('Hapus', 'kehadiran', `${item.nama_karyawan} (${item.tanggal})`);
     } catch (err) {
       alert('Gagal menghapus data kehadiran: ' + err.message);
     }
@@ -1075,6 +1402,7 @@ const App = {
     const tbody = document.getElementById('table-audit-body');
     const allAssets = [];
     const printDate = new Date();
+    this.updateReportSignatureNames();
     document.getElementById('print-date').textContent =
       `Tanggal cetak: ${printDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}`;
 
@@ -1259,6 +1587,7 @@ const App = {
   },
 
   restoreDatabase() {
+    if (!this.requireAdmin()) return;
     const fileInput = document.getElementById('input-restore-file');
     if (!fileInput.files || fileInput.files.length === 0) {
       alert('Silakan pilih file cadangan berformat .json terlebih dahulu!');
@@ -1270,6 +1599,7 @@ const App = {
     reader.onload = async (e) => {
       try {
         const data = JSON.parse(e.target.result);
+        if (!this.requireAdmin()) return;
         if (Array.isArray(data.karyawan)) {
           for (const item of data.karyawan) {
             const { id, ...rest } = item;
@@ -1310,6 +1640,7 @@ const App = {
   },
 
   async resetDatabase() {
+    if (!this.requireAdmin()) return;
     if (confirm('Tambahkan kembali kumpulan data contoh (dummy data) ke Cloud Firestore?')) {
       try {
         for (const item of DEFAULT_KARYAWAN) await addDoc(collection(db, 'karyawan'), item);
@@ -1481,6 +1812,66 @@ const App = {
   },
 
   // --- HELPERS ---
+  loadAuditSignatureSettings() {
+    const adminInput = document.getElementById('audit-signature-admin');
+    const managerInput = document.getElementById('audit-signature-manager');
+    try {
+      adminInput.value = localStorage.getItem(AUDIT_SIGNATURE_ADMIN_KEY) || 'Dhimas Rizky Arrasy';
+      managerInput.value = localStorage.getItem(AUDIT_SIGNATURE_MANAGER_KEY) || '';
+    } catch (error) {
+      console.error('Gagal membaca nama penanda tangan dari localStorage:', error);
+      adminInput.value = 'Dhimas Rizky Arrasy';
+      managerInput.value = '';
+    }
+    this.updateReportSignatureNames();
+  },
+
+  saveAuditSignatures(e) {
+    e.preventDefault();
+    const adminName = document.getElementById('audit-signature-admin').value.trim();
+    const managerName = document.getElementById('audit-signature-manager').value.trim();
+    if (!adminName || !managerName) {
+      alert('Nama pembuat laporan dan nama pembimbing wajib diisi.');
+      return;
+    }
+
+    try {
+      localStorage.setItem(AUDIT_SIGNATURE_ADMIN_KEY, adminName);
+      localStorage.setItem(AUDIT_SIGNATURE_MANAGER_KEY, managerName);
+      this.updateReportSignatureNames();
+      alert('Nama penanda tangan laporan audit berhasil disimpan.');
+    } catch (error) {
+      console.error('Gagal menyimpan nama penanda tangan laporan:', error);
+      alert('Nama penanda tangan tidak dapat disimpan di browser ini.');
+    }
+  },
+
+  updateReportSignatureNames() {
+    const adminInput = document.getElementById('audit-signature-admin');
+    const managerInput = document.getElementById('audit-signature-manager');
+    const adminName = adminInput && adminInput.value.trim()
+      ? adminInput.value.trim()
+      : 'Dhimas Rizky Arrasy';
+    const managerName = managerInput ? managerInput.value.trim() : '';
+    document.getElementById('sign-admin-name').textContent = adminName;
+    document.getElementById('sign-manager-name').textContent = managerName;
+  },
+
+  async logActivity(action, collectionName, itemName) {
+    if (!this.isAdmin()) return;
+    try {
+      await addDoc(collection(db, 'activity_logs'), {
+        timestamp: Date.now(),
+        actor: State.user.email || ADMIN_EMAIL,
+        action,
+        collection: collectionName,
+        item: itemName
+      });
+    } catch (error) {
+      console.error('Gagal menyimpan log aktivitas:', error);
+    }
+  },
+
   updateHeaderDate() {
     const dateElement = document.getElementById('header-current-date');
     if (!dateElement) return;
@@ -1575,6 +1966,22 @@ const App = {
       this.login(email, pass);
     });
 
+    document.getElementById('btn-toggle-password').addEventListener('click', (e) => {
+      const button = e.currentTarget;
+      const password = document.getElementById('login-password');
+      const isVisible = password.type === 'password';
+      password.type = isVisible ? 'text' : 'password';
+      button.classList.toggle('password-visible', isVisible);
+      button.setAttribute('aria-pressed', String(isVisible));
+      button.setAttribute('aria-label', isVisible ? 'Sembunyikan password' : 'Tampilkan password');
+    });
+
+    document.getElementById('form-admin-access').addEventListener('submit', (e) => this.addAdminEmail(e));
+    document.getElementById('admin-email-list').addEventListener('click', (e) => {
+      const removeButton = e.target.closest('[data-remove-admin]');
+      if (removeButton) this.removeAdminEmail(removeButton.dataset.removeAdmin);
+    });
+
     const trigger = document.getElementById('user-profile-trigger');
     const dropdown = document.getElementById('user-dropdown');
     trigger.addEventListener('click', (e) => {
@@ -1602,6 +2009,12 @@ const App = {
     mobileNavBackdrop.addEventListener('click', closeMobileNav);
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') closeMobileNav();
+    });
+    document.getElementById('btn-close-public-qr').addEventListener('click', () => this.closePublicQr());
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !document.getElementById('public-qr-overlay').hidden) {
+        this.closePublicQr();
+      }
     });
 
     document.querySelectorAll('.sidebar-nav .nav-link').forEach(link => {
@@ -1707,6 +2120,7 @@ const App = {
     document.getElementById('form-kendaraan').addEventListener('submit', (e) => this.saveKendaraan(e));
     document.getElementById('form-kehadiran').addEventListener('submit', (e) => this.saveKehadiran(e));
     document.getElementById('form-update-profile').addEventListener('submit', (e) => this.saveProfile(e));
+    document.getElementById('form-audit-signatures').addEventListener('submit', (e) => this.saveAuditSignatures(e));
     document.getElementById('btn-print-qr').addEventListener('click', () => this.printQrLabel());
 
     document.getElementById('btn-tambah-karyawan').addEventListener('click', () => this.openKaryawanModal());

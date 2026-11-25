@@ -18,25 +18,89 @@
           <img src="img/logo-agrinas.png" alt="Logo Agrinas Palma Nusantara" class="brand-logo brand-logo-agrinas">
         </div>
         <h2>AGRINAS PALMA NUSANTARA</h2>
-        <p>Sistem Inventaris Aset IT (Cloud)</p>
+        <p>Portal Manajemen Inventaris Aset IT</p>
+        <span class="login-access-badge">Akses Terbatas &bull; Khusus Admin IT &amp; Pimpinan</span>
       </div>
 
       <div id="login-alert" class="login-alert">Email atau Password salah!</div>
 
       <form id="form-login" class="login-form">
         <div class="form-group">
-          <label for="login-email">Email Admin</label>
+          <label for="login-email">Email Akun Terdaftar</label>
           <input type="email" id="login-email" required placeholder="Contoh: admin@agrinas.co.id" autocomplete="email">
         </div>
         <div class="form-group">
           <label for="login-password">Password</label>
-          <input type="password" id="login-password" required placeholder="Masukkan password" autocomplete="current-password">
+          <div class="password-input-wrapper">
+            <input type="password" id="login-password" required placeholder="Masukkan password" autocomplete="current-password">
+            <button type="button" class="password-toggle" id="btn-toggle-password" aria-label="Tampilkan password" aria-controls="login-password" aria-pressed="false">
+              <svg class="eye-icon" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+              <svg class="eye-off-icon" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m3 3 18 18"></path>
+                <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"></path>
+                <path d="M9.9 5.2A10.7 10.7 0 0 1 12 5c6.4 0 10 7 10 7a15.7 15.7 0 0 1-3.1 3.9"></path>
+                <path d="M6.2 6.2C3.5 8 2 12 2 12s3.6 7 10 7a10.7 10.7 0 0 0 4-.8"></path>
+              </svg>
+            </button>
+          </div>
         </div>
         <button type="submit" id="btn-login-submit" class="btn btn-primary" style="justify-content: center; padding: 11px; margin-top: 6px;">
           Masuk ke Sistem
         </button>
       </form>
+      <p class="login-footnote">Karyawan umum tidak memerlukan akun login untuk pemindaian QR aset.</p>
     </div>
+  </div>
+
+  <div id="public-qr-overlay" class="public-qr-overlay" hidden>
+    <section class="public-qr-card" role="dialog" aria-modal="true" aria-labelledby="public-qr-title">
+      <header class="public-qr-header">
+        <img src="img/logo-agrinas.png" alt="Logo PT Agrinas Palma Nusantara">
+        <div>
+          <strong>PT AGRINAS PALMA NUSANTARA</strong>
+          <span>DIVISI IT INFRASTRUCTURE &amp; SUPPORT</span>
+        </div>
+      </header>
+      <div class="public-qr-intro">
+        <span class="public-qr-mode">INFORMASI PUBLIK</span>
+        <h2 id="public-qr-title">Informasi Perangkat Terdaftar</h2>
+        <p>Ringkasan informasi dari label QR; data dapat berubah setelah label dicetak.</p>
+      </div>
+      <p id="public-qr-error" class="public-qr-error" role="alert" hidden></p>
+      <dl class="public-qr-details">
+        <div>
+          <dt>Kode Aset</dt>
+          <dd id="public-qr-code">-</dd>
+        </div>
+        <div>
+          <dt>Jenis Perangkat</dt>
+          <dd id="public-qr-type">-</dd>
+        </div>
+        <div>
+          <dt>Merek &amp; Tipe</dt>
+          <dd id="public-qr-model">-</dd>
+        </div>
+        <div>
+          <dt>Pemegang / Lokasi</dt>
+          <dd id="public-qr-pic">-</dd>
+        </div>
+        <div>
+          <dt>Status Kondisi</dt>
+          <dd id="public-qr-status">-</dd>
+        </div>
+      </dl>
+      <div class="public-qr-actions">
+        <a id="public-qr-report" class="btn btn-primary" target="_blank" rel="noopener noreferrer">
+          Laporkan Kendala ke IT Support
+        </a>
+        <button type="button" class="btn btn-outline" id="btn-close-public-qr">
+          Tutup / Login Admin
+        </button>
+      </div>
+    </section>
   </div>
 
   <!-- ==================== SIDEBAR ==================== -->
@@ -118,7 +182,7 @@
         </div>
       </div>
       <div class="top-bar-right">
-        <div class="date-badge" title="Tanggal hari ini">
+        <div class="date-badge" id="header-date-badge" title="Tanggal hari ini">
           <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
             <rect x="3" y="5" width="18" height="16" rx="2"></rect>
             <line x1="16" y1="3" x2="16" y2="7"></line>
@@ -147,11 +211,11 @@
         <div class="user-menu-wrapper" style="position: relative;">
           <div class="user-profile-trigger" id="user-profile-trigger">
             <div class="user-avatar" id="header-user-avatar">A</div>
-            <div>
+            <div class="user-profile-details">
               <div class="user-name" id="header-user-name">Admin IT</div>
-              <div class="user-role" id="header-user-role">IT Department</div>
             </div>
-            <span style="font-size: 0.75rem; color: var(--text-muted); margin-left: 2px;">▼</span>
+            <span class="header-role-badge role-admin" id="header-user-role">Admin IT (Full Access)</span>
+            <span class="profile-chevron" aria-hidden="true">▼</span>
           </div>
 
           <div class="user-dropdown" id="user-dropdown">
@@ -261,7 +325,7 @@
         <div class="section-header">
           <h2><span class="section-icon">👥</span> Data Karyawan</h2>
           <div class="section-actions">
-            <button class="btn btn-primary" id="btn-tambah-karyawan">+ Tambah Karyawan</button>
+            <button class="btn btn-primary" id="btn-tambah-karyawan" data-admin-only>+ Tambah Karyawan</button>
             <button class="btn btn-outline" onclick="app.exportKaryawanCSV()">📥 Ekspor CSV</button>
           </div>
         </div>
@@ -309,7 +373,7 @@
               <option value="Rusak">Rusak</option>
               <option value="critical">Perlu Servis / Rusak</option>
             </select>
-            <button class="btn btn-primary" id="btn-tambah-hardware">+ Tambah Perangkat</button>
+            <button class="btn btn-primary" id="btn-tambah-hardware" data-admin-only>+ Tambah Perangkat</button>
             <button class="btn btn-outline" onclick="app.exportHardwareCSV()">📥 Ekspor CSV</button>
           </div>
         </div>
@@ -358,7 +422,7 @@
               <option value="Rusak">Rusak</option>
               <option value="critical">Perlu Servis / Rusak</option>
             </select>
-            <button class="btn btn-primary" id="btn-tambah-network">+ Tambah Perangkat</button>
+            <button class="btn btn-primary" id="btn-tambah-network" data-admin-only>+ Tambah Perangkat</button>
             <button class="btn btn-outline" onclick="app.exportNetworkCSV()">📥 Ekspor CSV</button>
           </div>
         </div>
@@ -392,7 +456,7 @@
         <div class="section-header">
           <h2><span class="section-icon">🚙</span> Kendaraan Operasional</h2>
           <div class="section-actions">
-            <button class="btn btn-primary" id="btn-tambah-kendaraan">+ Tambah Kendaraan</button>
+            <button class="btn btn-primary" id="btn-tambah-kendaraan" data-admin-only>+ Tambah Kendaraan</button>
             <button class="btn btn-outline" onclick="app.exportKendaraanCSV()">📥 Ekspor CSV</button>
           </div>
         </div>
@@ -429,7 +493,7 @@
               <label for="filter-kehadiran-tanggal">Filter Tanggal</label>
               <input type="date" id="filter-kehadiran-tanggal">
             </div>
-            <button class="btn btn-primary" id="btn-tambah-kehadiran">+ Catat Kehadiran</button>
+            <button class="btn btn-primary" id="btn-tambah-kehadiran" data-admin-only>+ Catat Kehadiran</button>
             <button class="btn btn-outline" onclick="app.exportKehadiranCSV()">📥 Ekspor CSV</button>
           </div>
         </div>
@@ -530,13 +594,13 @@
             <p>Dibuat oleh,</p>
             <p><strong>Admin IT / Mahasiswa PKL</strong></p>
             <div class="signature-space"></div>
-            <p class="signature-name">________________________</p>
+            <p class="signature-name" id="sign-admin-name"></p>
           </div>
           <div class="signature-box">
             <p>Diketahui oleh,</p>
             <p><strong>Pembimbing Lapangan / Manager IT</strong></p>
             <div class="signature-space"></div>
-            <p class="signature-name">________________________</p>
+            <p class="signature-name" id="sign-manager-name"></p>
           </div>
         </div>
       </div>
@@ -548,6 +612,36 @@
         </div>
 
         <div class="settings-grid">
+          <div class="settings-card" id="admin-access-card" data-admin-only>
+            <h3>Manajemen Akses Admin IT</h3>
+            <p class="settings-desc">Kelola email yang memiliki akses penuh. Minimal satu Admin IT harus tetap terdaftar.</p>
+            <ul id="admin-email-list" class="admin-email-list" aria-label="Daftar email Admin IT"></ul>
+            <form id="form-admin-access">
+              <div class="form-group" style="margin-bottom: 12px;">
+                <label for="admin-access-email">Tambah email Admin IT</label>
+                <input type="email" id="admin-access-email" required placeholder="nama@agrinas.co.id" autocomplete="off">
+              </div>
+              <button type="submit" class="btn btn-primary">Tambah Admin</button>
+              <p id="admin-access-status" class="admin-access-status" role="status" aria-live="polite"></p>
+            </form>
+          </div>
+
+          <div class="settings-card">
+            <h3>Pengaturan Penanda Tangan Laporan Audit</h3>
+            <p class="settings-desc">Nama ini akan tampil pada kolom tanda tangan laporan audit dan tersimpan di browser ini.</p>
+            <form id="form-audit-signatures">
+              <div class="form-group" style="margin-bottom: 12px;">
+                <label for="audit-signature-admin">Nama Pembuat Laporan (Admin IT / Mahasiswa PKL)</label>
+                <input type="text" id="audit-signature-admin" value="Dhimas Rizky Arrasy" required>
+              </div>
+              <div class="form-group" style="margin-bottom: 16px;">
+                <label for="audit-signature-manager">Nama Pembimbing Lapangan / Manager IT</label>
+                <input type="text" id="audit-signature-manager" placeholder="Masukkan nama pembimbing atau manager" required>
+              </div>
+              <button type="submit" class="btn btn-primary">Simpan Nama Penanda Tangan</button>
+            </form>
+          </div>
+
           <div class="settings-card">
             <h3><span>👤</span> Profil &amp; Keamanan Akun Firebase</h3>
             <p class="settings-desc">Perbarui nama tampilan profil atau ganti kata sandi akun Firebase Authentication Anda.</p>
@@ -580,7 +674,7 @@
                 <small style="color: var(--text-muted); display: block; margin-top: 4px;">Simpan salinan lengkap dari Cloud Firestore ke komputer.</small>
               </div>
 
-              <div style="border-top: 1px solid var(--border); padding-top: 14px;">
+              <div style="border-top: 1px solid var(--border); padding-top: 14px;" data-admin-only>
                 <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 6px;">Impor Data dari File JSON ke Cloud</label>
                 <input type="file" id="input-restore-file" accept=".json" style="font-size: 0.8rem; margin-bottom: 8px; width: 100%;">
                 <button class="btn btn-outline" style="width: 100%; justify-content: center;" onclick="app.restoreDatabase()">
@@ -588,7 +682,7 @@
                 </button>
               </div>
 
-              <div style="border-top: 1px solid var(--border); padding-top: 14px;">
+              <div style="border-top: 1px solid var(--border); padding-top: 14px;" data-admin-only>
                 <button class="btn btn-danger" style="width: 100%; justify-content: center;" onclick="app.resetDatabase()">
                   ⚠️ Isi Ulang Data Awal (Seed Dummy Data)
                 </button>
