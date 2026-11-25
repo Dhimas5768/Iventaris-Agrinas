@@ -1536,4 +1536,17 @@ tbody td.muted {
     overflow-x: auto !important;
     white-space: nowrap !important;
   }
+
+  aside a, .sidebar a, .nav-item, .menu-item, .sidebar button {
+  display: inline-flex !important;
+  align-items: center !important;
+  color: #ffffff !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  font-size: 13px !important;
+  padding: 6px 10px !important;
+  background: rgba(255, 255, 255, 0.12) !important;
+  border-radius: 6px !important;
+  text-decoration: none !important;
+}
 }
