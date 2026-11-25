@@ -657,7 +657,7 @@
       <!-- ==================== VIEW 6: PENGATURAN ==================== -->
       <div id="view-pengaturan" class="view-section">
         <div class="section-header">
-          <h2>Pengaturan Sistem &amp; Manajemen Cloud Database</h2>
+          <h2>Pengaturan Sistem &amp; Manajemen Data</h2>
         </div>
 
         <div class="settings-grid">
@@ -692,8 +692,8 @@
           </div>
 
           <div class="settings-card">
-            <h3>Profil &amp; Keamanan Akun Firebase</h3>
-            <p class="settings-desc">Perbarui nama tampilan profil atau ganti kata sandi akun Firebase Authentication Anda.</p>
+            <h3>Profil &amp; Keamanan Akun</h3>
+            <p class="settings-desc">Perbarui nama tampilan atau ganti kata sandi akun Anda.</p>
             <form id="form-update-profile">
               <div class="form-group" style="margin-bottom: 12px;">
                 <label for="settings-name">Nama Tampilan (Display Name)</label>
@@ -712,22 +712,22 @@
           </div>
 
           <div class="settings-card">
-            <h3>Cadangan &amp; Pemulihan Cloud Firestore</h3>
-            <p class="settings-desc">Unduh salinan seluruh database dari Cloud Firestore ke file JSON, atau impor data cadangan ke server.</p>
+            <h3>Cadangan &amp; Pemulihan Data</h3>
+            <p class="settings-desc">Unduh salinan data inventaris ke file JSON atau pulihkan data dari file cadangan.</p>
             
             <div style="display: flex; flex-direction: column; gap: 14px;">
               <div>
                 <button class="btn btn-primary" style="width: 100%; justify-content: center;" onclick="app.backupDatabase()">
-                   Cadangkan Database Cloud (Download JSON)
+                   Unduh Cadangan Data (JSON)
                 </button>
-                <small style="color: var(--text-muted); display: block; margin-top: 4px;">Simpan salinan lengkap dari Cloud Firestore ke komputer.</small>
+                <small style="color: var(--text-muted); display: block; margin-top: 4px;">Simpan salinan data inventaris ke komputer.</small>
               </div>
 
               <div style="border-top: 1px solid var(--border); padding-top: 14px;" data-admin-only>
-                <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 6px;">Impor Data dari File JSON ke Cloud</label>
+                <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 6px;">Impor Data dari File JSON</label>
                 <input type="file" id="input-restore-file" accept=".json" style="font-size: 0.8rem; margin-bottom: 8px; width: 100%;">
                 <button class="btn btn-outline" style="width: 100%; justify-content: center;" onclick="app.restoreDatabase()">
-                   Unggah &amp; Pulihkan ke Firestore
+                   Unggah dan Pulihkan Data
                 </button>
               </div>
 
@@ -735,7 +735,7 @@
                 <button class="btn btn-danger" style="width: 100%; justify-content: center;" onclick="app.resetDatabase()">
                    Isi Ulang Data Awal (Seed Dummy Data)
                 </button>
-                <small style="color: var(--text-muted); display: block; margin-top: 4px;">Menambahkan ulang data contoh ke koleksi Firestore.</small>
+                <small style="color: var(--text-muted); display: block; margin-top: 4px;">Menambahkan ulang data contoh ke sistem inventaris.</small>
               </div>
             </div>
           </div>
@@ -1174,7 +1174,7 @@
         </div>
         <div style="background: var(--surface-muted); padding: 14px; border-radius: var(--radius-sm); border: 1px solid var(--border);">
           <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-            <span style="color: var(--text-muted); font-size: 0.85rem;">Email Firebase:</span>
+            <span style="color: var(--text-muted); font-size: 0.85rem;">Email akun:</span>
             <strong id="info-account-email">-</strong>
           </div>
           <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
@@ -1182,8 +1182,8 @@
             <strong>PT Agrinas Palma Nusantara</strong>
           </div>
           <div style="display: flex; justify-content: space-between;">
-            <span style="color: var(--text-muted); font-size: 0.85rem;">Database Engine:</span>
-            <span style="color: var(--success); font-weight: 600;"> Cloud Firestore Real-Time</span>
+            <span style="color: var(--text-muted); font-size: 0.85rem;">Sinkronisasi data:</span>
+            <span style="color: var(--success); font-weight: 600;">Aktif, real-time</span>
           </div>
         </div>
       </div>

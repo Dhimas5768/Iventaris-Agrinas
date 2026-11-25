@@ -52,6 +52,13 @@ const ADMIN_EMAIL = 'admin@agrinas.co.id';
 const AUDIT_SIGNATURE_ADMIN_KEY = 'agrinas.auditSignature.admin';
 const AUDIT_SIGNATURE_MANAGER_KEY = 'agrinas.auditSignature.manager';
 
+function getUserFacingError(error) {
+  const message = error && typeof error.message === 'string'
+    ? error.message
+    : 'Silakan coba lagi.';
+  return message.replace(/\b(?:Cloud\s+Firestore|Firestore|Firebase(?:\s+Authentication|Error)?)\b/gi, 'sistem');
+}
+
 // =======================================================================
 // 2. DATA AWAL (SEED DUMMY JIKA FIRESTORE MASIH KOSONG)
 // =======================================================================
@@ -152,11 +159,11 @@ const App = {
       console.error('Login error:', error.code);
       alertBox.style.display = 'block';
       if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
-        alertBox.textContent = 'Email atau Password salah! Pastikan akun sudah dibuat di Firebase Authentication.';
+        alertBox.textContent = 'Email atau kata sandi salah. Periksa kembali kredensial akun Anda.';
       } else if (error.code === 'auth/too-many-requests') {
         alertBox.textContent = 'Terlalu banyak percobaan gagal. Silakan tunggu beberapa saat.';
       } else {
-        alertBox.textContent = 'Gagal masuk: ' + error.message;
+        alertBox.textContent = 'Gagal masuk: ' + getUserFacingError(error);
       }
     } finally {
       btnSubmit.disabled = false;
@@ -290,7 +297,7 @@ const App = {
       this.setAdminAccessStatus(`Akses Admin IT ditambahkan untuk ${email}.`);
     } catch (error) {
       console.error('Gagal menambahkan Admin IT:', error);
-      this.setAdminAccessStatus('Gagal menyimpan perubahan akses Admin ke Firestore.', true);
+      this.setAdminAccessStatus('Gagal menyimpan perubahan akses Admin. Silakan coba kembali.', true);
     }
   },
 
@@ -315,7 +322,7 @@ const App = {
       }
     } catch (error) {
       console.error('Gagal menghapus Admin IT:', error);
-      this.setAdminAccessStatus('Gagal menyimpan perubahan akses Admin ke Firestore.', true);
+      this.setAdminAccessStatus('Gagal menyimpan perubahan akses Admin. Silakan coba kembali.', true);
     }
   },
 
@@ -773,7 +780,7 @@ const App = {
       }
       this.closeModal('modal-karyawan');
     } catch (err) {
-      alert('Gagal menyimpan data karyawan: ' + err.message);
+      alert('Gagal menyimpan data karyawan: ' + getUserFacingError(err));
     }
   },
 
@@ -834,12 +841,12 @@ const App = {
     if (!this.requireAdmin()) return;
     const karyawan = State.karyawan.find(item => item.id === id);
     if (!karyawan) return;
-    if (confirm(`Yakin ingin menghapus data karyawan "${karyawan.nama}" dari Cloud Firestore?`)) {
+    if (confirm(`Yakin ingin menghapus data karyawan "${karyawan.nama}"?`)) {
       try {
         await deleteDoc(doc(db, 'karyawan', id));
         await this.logActivity('Hapus', 'karyawan', `${karyawan.nama} (${karyawan.nik || '-'})`);
       } catch (err) {
-        alert('Gagal menghapus karyawan: ' + err.message);
+        alert('Gagal menghapus karyawan: ' + getUserFacingError(err));
       }
     }
   },
@@ -989,7 +996,7 @@ const App = {
       await this.logActivity(id ? 'Edit' : 'Tambah', 'hardware', `${payload.kode} - ${payload.jenis}`);
       this.closeModal('modal-hardware');
     } catch (err) {
-      alert('Gagal menyimpan perangkat hardware: ' + err.message);
+      alert('Gagal menyimpan perangkat hardware: ' + getUserFacingError(err));
     }
   },
 
@@ -1000,12 +1007,12 @@ const App = {
 
   async deleteHardware(id, kode) {
     if (!this.requireAdmin()) return;
-    if (confirm(`Yakin ingin menghapus perangkat hardware [${kode}] dari Cloud Firestore?`)) {
+    if (confirm(`Yakin ingin menghapus perangkat hardware [${kode}]?`)) {
       try {
         await deleteDoc(doc(db, 'hardware', id));
         await this.logActivity('Hapus', 'hardware', kode);
       } catch (err) {
-        alert('Gagal menghapus perangkat: ' + err.message);
+        alert('Gagal menghapus perangkat: ' + getUserFacingError(err));
       }
     }
   },
@@ -1102,7 +1109,7 @@ const App = {
       await this.logActivity(id ? 'Edit' : 'Tambah', 'network', `${payload.kode} - ${payload.nama}`);
       this.closeModal('modal-network');
     } catch (err) {
-      alert('Gagal menyimpan perangkat jaringan: ' + err.message);
+      alert('Gagal menyimpan perangkat jaringan: ' + getUserFacingError(err));
     }
   },
 
@@ -1113,12 +1120,12 @@ const App = {
 
   async deleteNetwork(id, kode) {
     if (!this.requireAdmin()) return;
-    if (confirm(`Yakin ingin menghapus perangkat jaringan [${kode}] dari Cloud Firestore?`)) {
+    if (confirm(`Yakin ingin menghapus perangkat jaringan [${kode}]?`)) {
       try {
         await deleteDoc(doc(db, 'network', id));
         await this.logActivity('Hapus', 'network', kode);
       } catch (err) {
-        alert('Gagal menghapus perangkat jaringan: ' + err.message);
+        alert('Gagal menghapus perangkat jaringan: ' + getUserFacingError(err));
       }
     }
   },
@@ -1358,7 +1365,7 @@ const App = {
       await this.logActivity(id ? 'Edit' : 'Tambah', 'kendaraan', `${payload.no_polisi} - ${payload.merk_tipe}`);
       this.closeModal('modal-kendaraan');
     } catch (err) {
-      alert('Gagal menyimpan data kendaraan: ' + err.message);
+      alert('Gagal menyimpan data kendaraan: ' + getUserFacingError(err));
     }
   },
 
@@ -1370,12 +1377,12 @@ const App = {
   async deleteKendaraan(id) {
     if (!this.requireAdmin()) return;
     const item = State.kendaraan.find(kendaraan => kendaraan.id === id);
-    if (!item || !confirm(`Yakin ingin menghapus kendaraan [${item.no_polisi}] dari Cloud Firestore?`)) return;
+    if (!item || !confirm(`Yakin ingin menghapus kendaraan [${item.no_polisi}]?`)) return;
     try {
       await deleteDoc(doc(db, 'kendaraan', id));
       await this.logActivity('Hapus', 'kendaraan', `${item.no_polisi} - ${item.merk_tipe}`);
     } catch (err) {
-      alert('Gagal menghapus data kendaraan: ' + err.message);
+      alert('Gagal menghapus data kendaraan: ' + getUserFacingError(err));
     }
   },
 
@@ -1480,7 +1487,7 @@ const App = {
       );
       this.closeModal('modal-kehadiran');
     } catch (err) {
-      alert('Gagal menyimpan data kehadiran: ' + err.message);
+      alert('Gagal menyimpan data kehadiran: ' + getUserFacingError(err));
     }
   },
 
@@ -1497,7 +1504,7 @@ const App = {
       await deleteDoc(doc(db, 'kehadiran', id));
       await this.logActivity('Hapus', 'kehadiran', `${item.nama_karyawan} (${item.tanggal})`);
     } catch (err) {
-      alert('Gagal menghapus data kehadiran: ' + err.message);
+      alert('Gagal menghapus data kehadiran: ' + getUserFacingError(err));
     }
   },
 
@@ -1685,18 +1692,18 @@ const App = {
       await updateProfile(State.user, { displayName: newName });
       if (newPass) {
         if (newPass.length < 6) {
-          alert('Password baru Firebase minimal 6 karakter!');
+          alert('Kata sandi baru minimal 6 karakter!');
           return;
         }
         await updatePassword(State.user, newPass);
       }
       this.updateProfileUI(State.user);
-      alert('Profil & Keamanan Akun berhasil diperbarui di Firebase!');
+      alert('Profil & Keamanan Akun berhasil diperbarui.');
     } catch (err) {
       if (err.code === 'auth/requires-recent-login') {
         alert('Demi keamanan, silakan Logout lalu Login kembali terlebih dahulu sebelum mengganti password.');
       } else {
-        alert('Gagal memperbarui profil: ' + err.message);
+        alert('Gagal memperbarui profil: ' + getUserFacingError(err));
       }
     }
   },
@@ -1717,7 +1724,7 @@ const App = {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `Backup_Cloud_Agrinas_${date}.json`;
+    link.download = `Cadangan_Inventaris_Agrinas_${date}.json`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1769,9 +1776,9 @@ const App = {
           }
         }
         fileInput.value = '';
-        alert('Data JSON berhasil diunggah ke Cloud Firestore!');
+        alert('Data JSON berhasil dipulihkan.');
       } catch (err) {
-        alert('Gagal memulihkan data: ' + err.message);
+        alert('Gagal memulihkan data: ' + getUserFacingError(err));
       }
     };
     reader.readAsText(file);
@@ -1779,14 +1786,14 @@ const App = {
 
   async resetDatabase() {
     if (!this.requireAdmin()) return;
-    if (confirm('Tambahkan kembali kumpulan data contoh (dummy data) ke Cloud Firestore?')) {
+    if (confirm('Tambahkan kembali kumpulan data contoh (dummy data) ke sistem inventaris?')) {
       try {
         for (const item of DEFAULT_KARYAWAN) await addDoc(collection(db, 'karyawan'), item);
         for (const item of DEFAULT_HARDWARE) await addDoc(collection(db, 'hardware'), item);
         for (const item of DEFAULT_NETWORK) await addDoc(collection(db, 'network'), item);
-        alert('Data contoh berhasil ditambahkan ke Firestore!');
+        alert('Data contoh berhasil ditambahkan.');
       } catch (err) {
-        alert('Gagal menambahkan data contoh: ' + err.message);
+        alert('Gagal menambahkan data contoh: ' + getUserFacingError(err));
       }
     }
   },
