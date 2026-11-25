@@ -529,14 +529,17 @@ body.role-viewer .btn-icon.delete {
 
 /* --- Tables --- */
 .table-wrapper {
+  width: 100%;
   background: var(--bg-card);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
   border: 1px solid var(--border);
 }
 
 .table-scroll {
+  width: 100%;
   overflow-x: auto;
 }
 
@@ -544,6 +547,14 @@ table {
   width: 100%;
   border-collapse: collapse;
   min-width: 900px;
+}
+
+.table-karyawan {
+  min-width: 1540px;
+}
+
+.table-karyawan-audit {
+  min-width: 1440px;
 }
 
 thead {
@@ -615,6 +626,122 @@ tbody td.muted {
 .badge-info {
   background: #E3F2FD;
   color: #1565C0;
+}
+
+.badge-inventory-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.badge-inventory-status.has-inventory {
+  background: #E8F5E9;
+  color: #2E7D32;
+}
+
+.badge-inventory-status.no-inventory {
+  background: #FDEEEF;
+  color: #A63B43;
+}
+
+.badge-inventory-status.inventory-unknown {
+  background: #F1F3F4;
+  color: #667085;
+}
+
+.employee-inventory-notes {
+  min-width: 260px;
+  max-width: 420px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+
+.employee-tenure-cell {
+  min-width: 220px;
+  white-space: normal;
+  line-height: 1.45;
+}
+
+.employee-tenure-start,
+.employee-tenure-end,
+.employee-tenure-summary {
+  margin-bottom: 5px;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+}
+
+.employee-tenure-summary.is-warning {
+  color: #B45309;
+  font-weight: 700;
+}
+
+.inventory-suggestion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #D8E6D8;
+  border-radius: var(--radius-sm);
+  background: #F4F8F4;
+  color: #315B37;
+  font-size: 0.78rem;
+}
+
+.inventory-suggestion[hidden] {
+  display: none;
+}
+
+.employee-detail-modal {
+  max-width: 640px;
+}
+
+.employee-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.employee-detail-item {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+  padding: 12px;
+  border: 1px solid #E5EBE6;
+  border-radius: 8px;
+  background: #FAFCFA;
+}
+
+.employee-detail-item > span {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.employee-detail-item > strong,
+.employee-detail-item > p {
+  margin: 0;
+  color: var(--text-dark);
+  font-size: 0.86rem;
+  overflow-wrap: anywhere;
+}
+
+.employee-detail-wide {
+  grid-column: 1 / -1;
+}
+
+.audit-employee-section {
+  margin-top: 28px;
+}
+
+.audit-employee-section .section-header {
+  margin-bottom: 12px;
 }
 
 .badge-gender {
@@ -1040,11 +1167,15 @@ tbody td.muted {
   align-items: center;
   justify-content: center;
   z-index: 9999;
-  padding: 16px;
+  padding: 20px;
+  box-sizing: border-box;
+  overflow-y: auto;
 }
 
 .modal-overlay.active {
   display: flex;
+  align-items: center;
+  justify-content: center;
   animation: fadeIn 0.2s ease;
 }
 
@@ -1053,15 +1184,25 @@ tbody td.muted {
   border-radius: var(--radius);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
   width: 100%;
-  max-width: 580px;
-  max-height: 90vh;
+  max-width: 640px;
+  max-height: 88vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  box-sizing: border-box;
+  min-height: 0;
 }
 
 .modal-container.modal-lg {
-  max-width: 760px;
+  max-width: 640px;
+}
+
+.modal-container > form {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
 }
 
 .modal-header {
@@ -1071,6 +1212,7 @@ tbody td.muted {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-shrink: 0;
 }
 
 .modal-header h3 {
@@ -1098,8 +1240,11 @@ tbody td.muted {
 }
 
 .modal-body {
-  padding: 24px;
+  flex: 1;
+  min-height: 0;
+  padding: 20px;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .modal-footer {
@@ -1109,6 +1254,8 @@ tbody td.muted {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
 /* --- Form Styles --- */
@@ -2427,6 +2574,15 @@ tbody td.muted {
 
   .asset-status-filter {
     width: 100%;
+  }
+
+  .employee-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .inventory-suggestion {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .report-signature {
