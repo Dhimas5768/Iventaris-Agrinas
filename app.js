@@ -502,7 +502,9 @@ const App = {
     document.getElementById('stat-karyawan').textContent = karyawan.length;
     document.getElementById('stat-hardware').textContent = hardware.length;
     document.getElementById('stat-network').textContent = network.length;
-    document.getElementById('stat-servis').textContent = servisCount;
+    const statServis = document.getElementById('stat-servis');
+    statServis.textContent = servisCount;
+    statServis.classList.toggle('has-alert', servisCount > 0);
     const today = this.getTodayDate();
     const todayAttendance = kehadiran.filter(item => item.tanggal === today);
     const presentCount = todayAttendance.filter(item => item.status === 'Hadir').length;
@@ -550,7 +552,13 @@ const App = {
       activitiesHtml += `
         <div class="activity-item" style="border-left-color: var(--warning);">
           <div>
-            <div class="item-title">⚠️ ${criticalCount} Perangkat Membutuhkan Tindakan</div>
+            <div class="item-title">
+              <svg class="activity-icon activity-icon--warning" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m10.3 3.9-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3.1l-8-14a2 2 0 0 0-3.4 0Z"></path>
+                <path d="M12 9v4M12 17h.01"></path>
+              </svg>
+              <span>${criticalCount} Perangkat Membutuhkan Tindakan</span>
+            </div>
             <div class="item-time">${hardwareCriticals.length} hardware dan ${networkCriticals.length} network perlu diperiksa</div>
           </div>
           <button class="btn btn-outline btn-sm" onclick="app.showCriticalAssets()">Cek</button>
@@ -561,14 +569,26 @@ const App = {
     activitiesHtml += `
       <div class="activity-item">
         <div>
-          <div class="item-title">☁️ Cloud Firestore Terhubung</div>
-          <div class="item-time">Data tersinkronisasi real-time ke server Firebase.</div>
+          <div class="item-title">
+            <svg class="activity-icon activity-icon--sync" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 4 16.3"></path>
+              <path d="M8 16v4l-2-2M16 20v-4l2 2"></path>
+            </svg>
+            <span>Sinkronisasi Data Aktif</span>
+          </div>
+          <div class="item-time">Data tersimpan secara real-time di server.</div>
         </div>
         <span class="badge badge-success">ONLINE</span>
       </div>
       <div class="activity-item">
         <div>
-          <div class="item-title">🏢 PT Agrinas Palma Nusantara</div>
+          <div class="item-title">
+            <svg class="activity-icon activity-icon--organization" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6"></path>
+              <path d="M9 9h.01M15 9h.01M9 12h.01M15 12h.01"></path>
+            </svg>
+            <span>PT Agrinas Palma Nusantara</span>
+          </div>
           <div class="item-time">Audit Tagging Aset IT Siap Dicetak.</div>
         </div>
         <button class="btn btn-outline btn-sm" onclick="app.navigateTo('audit')">Laporan</button>
