@@ -89,6 +89,8 @@ const App = {
   currentView: 'dashboard',
   hardwareFilter: 'all',
   networkFilter: 'all',
+  hardwareStatusFilter: 'all',
+  networkStatusFilter: 'all',
   attendanceDateFilter: '',
   globalKeyword: '',
 
@@ -346,17 +348,19 @@ const App = {
     }
 
     const activityList = document.getElementById('dashboard-activity-list');
-    const criticals = hardware.filter(h => h.status === 'Perlu Servis' || h.status === 'Rusak');
+    const hardwareCriticals = hardware.filter(h => h.status === 'Perlu Servis' || h.status === 'Rusak');
+    const networkCriticals = network.filter(n => n.status === 'Maintenance' || n.status === 'Offline');
+    const criticalCount = hardwareCriticals.length + networkCriticals.length;
 
     let activitiesHtml = '';
-    if (criticals.length > 0) {
+    if (criticalCount > 0) {
       activitiesHtml += `
-        <div class="activity-item" style="border-left-color: var(--danger);">
+        <div class="activity-item" style="border-left-color: var(--warning);">
           <div>
-            <div class="item-title">⚠️ ${criticals.length} Perangkat Membutuhkan Tindakan</div>
-            <div class="item-time">Terdapat perangkat berstatus Perlu Servis / Rusak</div>
+            <div class="item-title">⚠️ ${criticalCount} Perangkat Membutuhkan Tindakan</div>
+            <div class="item-time">${hardwareCriticals.length} hardware dan ${networkCriticals.length} network perlu diperiksa</div>
           </div>
-          <button class="btn btn-outline btn-sm" onclick="app.navigateTo('hardware')">Cek</button>
+          <button class="btn btn-outline btn-sm" onclick="app.showCriticalAssets()">Cek</button>
         </div>
       `;
     }
@@ -544,18 +548,32 @@ const App = {
     }
   },
 
+  matchesAssetStatus(status, filter) {
+    if (filter === 'all') return true;
+    const normalizedStatus = (status || '').toLowerCase();
+    const isActive = normalizedStatus === 'aktif' || normalizedStatus === 'online';
+    const isService = normalizedStatus === 'perlu servis' || normalizedStatus === 'maintenance';
+    const isBroken = normalizedStatus === 'rusak' || normalizedStatus === 'offline';
+    if (filter === 'Aktif') return isActive;
+    if (filter === 'Perlu Servis') return isService;
+    if (filter === 'Rusak') return isBroken;
+    if (filter === 'critical') return isService || isBroken;
+    return true;
+  },
+
   renderHardwareTable() {
     const tbody = document.getElementById('table-hardware-body');
     const keyword = this.globalKeyword.toLowerCase().trim();
 
     const filtered = State.hardware.filter(item => {
       const matchFilter = this.hardwareFilter === 'all' || (item.jenis || '').toLowerCase() === this.hardwareFilter.toLowerCase();
+      const matchStatus = this.matchesAssetStatus(item.status, this.hardwareStatusFilter);
       const matchSearch = (item.kode || '').toLowerCase().includes(keyword) ||
                           (item.merek || '').toLowerCase().includes(keyword) ||
                           (item.sn || '').toLowerCase().includes(keyword) ||
                           (item.mac || '').toLowerCase().includes(keyword) ||
                           (item.pemegang || '').toLowerCase().includes(keyword);
-      return matchFilter && matchSearch;
+      return matchFilter && matchStatus && matchSearch;
     });
 
     document.getElementById('showing-hardware').textContent = `Menampilkan ${filtered.length} dari ${State.hardware.length} perangkat`;
@@ -578,6 +596,7 @@ const App = {
           <div class="action-buttons" style="justify-content: center;">
             <button class="btn-icon edit" title="Edit Perangkat" onclick="app.editHardware('${item.id}')">✏️</button>
             <button class="btn-icon delete" title="Hapus Perangkat" onclick="app.deleteHardware('${item.id}', '${this.escape(item.kode)}')">🗑️</button>
+            <button class="btn-icon qr" title="Cetak Label QR" onclick="app.openAssetQr('hardware', '${item.id}')">QR</button>
           </div>
         </td>
       </tr>
@@ -660,12 +679,13 @@ const App = {
 
     const filtered = State.network.filter(item => {
       const matchFilter = this.networkFilter === 'all' || (item.kategori || '').toLowerCase() === this.networkFilter.toLowerCase();
+      const matchStatus = this.matchesAssetStatus(item.status, this.networkStatusFilter);
       const matchSearch = (item.kode || '').toLowerCase().includes(keyword) ||
                           (item.nama || '').toLowerCase().includes(keyword) ||
                           (item.ip || '').toLowerCase().includes(keyword) ||
                           (item.mac || '').toLowerCase().includes(keyword) ||
                           (item.lokasi || '').toLowerCase().includes(keyword);
-      return matchFilter && matchSearch;
+      return matchFilter && matchStatus && matchSearch;
     });
 
     document.getElementById('showing-network').textContent = `Menampilkan ${filtered.length} dari ${State.network.length} perangkat jaringan`;
@@ -688,6 +708,7 @@ const App = {
           <div class="action-buttons" style="justify-content: center;">
             <button class="btn-icon edit" title="Edit Perangkat" onclick="app.editNetwork('${item.id}')">✏️</button>
             <button class="btn-icon delete" title="Hapus Perangkat" onclick="app.deleteNetwork('${item.id}', '${this.escape(item.kode)}')">🗑️</button>
+            <button class="btn-icon qr" title="Cetak Label QR" onclick="app.openAssetQr('network', '${item.id}')">QR</button>
           </div>
         </td>
       </tr>
@@ -757,6 +778,73 @@ const App = {
         alert('Gagal menghapus perangkat jaringan: ' + err.message);
       }
     }
+  },
+
+  openAssetQr(type, id) {
+    const item = type === 'hardware'
+      ? State.hardware.find(asset => asset.id === id)
+      : State.network.find(asset => asset.id === id);
+    if (!item) {
+      alert('Data aset tidak ditemukan. Silakan muat ulang tabel.');
+      return;
+    }
+    if (typeof window.QRCode !== 'function') {
+      console.error('Library QR Code tidak tersedia.');
+      alert('QR Code tidak dapat dibuat karena library QR belum berhasil dimuat. Periksa koneksi internet lalu coba lagi.');
+      return;
+    }
+
+    const labelData = {
+      kode: item.kode || '-',
+      nama: type === 'hardware' ? `${item.jenis || ''} ${item.merek || ''}`.trim() : item.nama || '-',
+      model: type === 'hardware' ? item.merek || '-' : item.nama || '-',
+      pemegang: type === 'hardware' ? item.pemegang || '-' : item.pemegang || item.lokasi || '-'
+    };
+    const holderLabel = type === 'hardware' ? 'Pemegang' : 'Pemegang / Lokasi';
+    const qrText = [
+      `Kode Aset: ${labelData.kode}`,
+      `Nama Perangkat: ${labelData.nama}`,
+      `Merek/Tipe: ${labelData.model}`,
+      `${holderLabel}: ${labelData.pemegang}`
+    ].join('\n');
+
+    document.getElementById('qr-asset-code').textContent = labelData.kode;
+    document.getElementById('qr-asset-name').textContent = labelData.nama;
+    document.getElementById('qr-asset-model').textContent = labelData.model;
+    document.getElementById('qr-asset-holder-label').textContent = `${holderLabel}:`;
+    document.getElementById('qr-asset-holder').textContent = labelData.pemegang;
+    const qrContainer = document.getElementById('asset-qr-code');
+    qrContainer.replaceChildren();
+    new window.QRCode(qrContainer, {
+      text: qrText,
+      width: 150,
+      height: 150,
+      correctLevel: window.QRCode.CorrectLevel.M
+    });
+    this.openModal('modal-qr');
+  },
+
+  printQrLabel() {
+    if (!document.getElementById('asset-qr-code').childElementCount) {
+      alert('QR Code belum tersedia. Buka kembali label aset sebelum mencetak.');
+      return;
+    }
+    const clearPrintMode = () => document.body.classList.remove('printing-qr');
+    window.addEventListener('afterprint', clearPrintMode, { once: true });
+    document.body.classList.add('printing-qr');
+    window.print();
+  },
+
+  showCriticalAssets() {
+    this.hardwareFilter = 'all';
+    this.networkFilter = 'all';
+    this.hardwareStatusFilter = 'critical';
+    this.networkStatusFilter = 'critical';
+    document.getElementById('hardware-status-filter').value = 'critical';
+    document.getElementById('network-status-filter').value = 'critical';
+    document.querySelectorAll('#hardware-filter-tabs .filter-tab, #network-filter-tabs .filter-tab')
+      .forEach(tab => tab.classList.toggle('active', tab.dataset.filter === 'all'));
+    this.navigateTo('hardware');
   },
 
   // --- CRUD: KENDARAAN OPERASIONAL ---
@@ -981,6 +1069,9 @@ const App = {
     const { hardware, network } = State;
     const tbody = document.getElementById('table-audit-body');
     const allAssets = [];
+    const printDate = new Date();
+    document.getElementById('print-date').textContent =
+      `Tanggal cetak: ${printDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}`;
 
     hardware.forEach(h => {
       allAssets.push({
@@ -1036,12 +1127,6 @@ const App = {
   },
 
   printAuditReport() {
-    const auditorName = (State.user && State.user.displayName) ? State.user.displayName : 'Admin IT';
-    const now = new Date();
-    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
-    document.getElementById('print-date').textContent = 'Dicetak pada: ' + now.toLocaleDateString('id-ID', options) + ' WIB';
-    document.getElementById('print-auditor-name').textContent = auditorName;
-
     this.navigateTo('audit');
     setTimeout(() => window.print(), 200);
   },
@@ -1486,10 +1571,30 @@ const App = {
     document.getElementById('btn-nav-settings').addEventListener('click', () => this.navigateTo('pengaturan'));
     document.getElementById('btn-logout').addEventListener('click', () => this.logout());
 
+    const mobileNavToggle = document.getElementById('btn-sidebar-toggle');
+    const mobileNavBackdrop = document.getElementById('mobile-nav-backdrop');
+    const closeMobileNav = () => {
+      document.body.classList.remove('mobile-nav-open');
+      mobileNavToggle.setAttribute('aria-expanded', 'false');
+      mobileNavToggle.setAttribute('aria-label', 'Buka menu navigasi');
+    };
+    mobileNavToggle.addEventListener('click', () => {
+      const isOpen = document.body.classList.toggle('mobile-nav-open');
+      mobileNavToggle.setAttribute('aria-expanded', String(isOpen));
+      mobileNavToggle.setAttribute('aria-label', isOpen ? 'Tutup menu navigasi' : 'Buka menu navigasi');
+    });
+    mobileNavBackdrop.addEventListener('click', closeMobileNav);
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeMobileNav();
+    });
+
     document.querySelectorAll('.sidebar-nav .nav-link').forEach(link => {
       link.addEventListener('click', (e) => {
         e.preventDefault();
-        if (link.dataset.view) this.navigateTo(link.dataset.view);
+        if (link.dataset.view) {
+          this.navigateTo(link.dataset.view);
+          closeMobileNav();
+        }
       });
     });
 
@@ -1557,6 +1662,15 @@ const App = {
       });
     });
 
+    document.getElementById('hardware-status-filter').addEventListener('change', (e) => {
+      this.hardwareStatusFilter = e.target.value;
+      this.renderHardwareTable();
+    });
+    document.getElementById('network-status-filter').addEventListener('change', (e) => {
+      this.networkStatusFilter = e.target.value;
+      this.renderNetworkTable();
+    });
+
     document.getElementById('hardware-jenis').addEventListener('change', (e) => {
       this.updateMacPlaceholder(e.target.value);
     });
@@ -1577,6 +1691,7 @@ const App = {
     document.getElementById('form-kendaraan').addEventListener('submit', (e) => this.saveKendaraan(e));
     document.getElementById('form-kehadiran').addEventListener('submit', (e) => this.saveKehadiran(e));
     document.getElementById('form-update-profile').addEventListener('submit', (e) => this.saveProfile(e));
+    document.getElementById('btn-print-qr').addEventListener('click', () => this.printQrLabel());
 
     document.getElementById('btn-tambah-karyawan').addEventListener('click', () => this.openKaryawanModal());
     document.getElementById('btn-tambah-hardware').addEventListener('click', () => this.openHardwareModal());

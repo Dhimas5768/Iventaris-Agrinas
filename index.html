@@ -40,7 +40,7 @@
   </div>
 
   <!-- ==================== SIDEBAR ==================== -->
-  <aside class="sidebar">
+  <aside class="sidebar" id="app-sidebar">
     <div class="sidebar-brand">
       <div class="brand-logo-card">
         <img src="img/logo-danantara.webp" alt="Logo Danantara Indonesia" class="brand-logo brand-logo-danantara">
@@ -93,14 +93,21 @@
       &copy; 2026 PT Agrinas Palma Nusantara
     </div>
   </aside>
+  <button type="button" class="mobile-nav-backdrop" id="mobile-nav-backdrop" aria-label="Tutup menu navigasi"></button>
 
   <!-- ==================== MAIN CONTENT ==================== -->
   <div class="main-content">
 
     <!-- Top Bar -->
     <header class="top-bar">
-      <div class="page-title">
-        <span id="page-breadcrumb-main">Dashboard</span> &nbsp;<span>/ <span id="page-breadcrumb-sub">Ringkasan Sistem</span></span>
+      <div class="top-bar-left">
+        <button type="button" class="hamburger-btn" id="btn-sidebar-toggle" aria-label="Buka menu navigasi" aria-controls="app-sidebar" aria-expanded="false">
+          <span></span><span></span><span></span>
+        </button>
+        <img src="img/logo-agrinas.png" alt="Logo Agrinas" class="mobile-brand-logo">
+        <div class="page-title">
+          <span id="page-breadcrumb-main">Dashboard</span> &nbsp;<span>/ <span id="page-breadcrumb-sub">Ringkasan Sistem</span></span>
+        </div>
       </div>
       <div class="top-bar-right">
         <div class="search-box-wrapper" style="position: relative;">
@@ -278,6 +285,13 @@
               <button class="filter-tab" data-filter="Printer">Printer</button>
               <button class="filter-tab" data-filter="Monitor">Monitor</button>
             </div>
+            <select id="hardware-status-filter" class="asset-status-filter" aria-label="Filter status hardware">
+              <option value="all">Semua Status</option>
+              <option value="Aktif">Aktif</option>
+              <option value="Perlu Servis">Perlu Servis</option>
+              <option value="Rusak">Rusak</option>
+              <option value="critical">Perlu Servis / Rusak</option>
+            </select>
             <button class="btn btn-primary" id="btn-tambah-hardware">+ Tambah Perangkat</button>
             <button class="btn btn-outline" onclick="app.exportHardwareCSV()">📥 Ekspor CSV</button>
           </div>
@@ -320,6 +334,13 @@
               <button class="filter-tab" data-filter="Server">Server</button>
               <button class="filter-tab" data-filter="Firewall">Firewall</button>
             </div>
+            <select id="network-status-filter" class="asset-status-filter" aria-label="Filter status network">
+              <option value="all">Semua Status</option>
+              <option value="Aktif">Aktif</option>
+              <option value="Perlu Servis">Perlu Servis</option>
+              <option value="Rusak">Rusak</option>
+              <option value="critical">Perlu Servis / Rusak</option>
+            </select>
             <button class="btn btn-primary" id="btn-tambah-network">+ Tambah Perangkat</button>
             <button class="btn btn-outline" onclick="app.exportNetworkCSV()">📥 Ekspor CSV</button>
           </div>
@@ -420,17 +441,18 @@
 
       <!-- ==================== VIEW 5: LAPORAN AUDIT ==================== -->
       <div id="view-audit" class="view-section">
-        <div class="print-only print-header">
+        <div class="print-header formal-report-header">
+          <img src="img/logo-agrinas.png" alt="Logo PT Agrinas Palma Nusantara">
           <h1>PT AGRINAS PALMA NUSANTARA</h1>
-          <h2>LAPORAN AUDIT &amp; ASSET TAGGING INVENTARIS IT</h2>
-          <p>Jl. Jenderal Sudirman Kav. 52-53, Jakarta Selatan &bull; Email: it.support@agrinas.co.id</p>
+          <h2>DIVISI IT INFRASTRUCTURE &amp; SUPPORT</h2>
+          <p>LAPORAN AUDIT &amp; ASSET TAGGING INVENTARIS IT</p>
           <p id="print-date">Dicetak pada: -</p>
         </div>
 
         <div class="section-header">
           <h2><span class="section-icon">📋</span> Laporan Audit &amp; Rekapitulasi Aset IT</h2>
           <div class="section-actions">
-            <button class="btn btn-primary" onclick="app.printAuditReport()">🖨️ Cetak Laporan (Print / PDF)</button>
+            <button class="btn btn-primary" onclick="app.printAuditReport()">🖨️ Cetak / Simpan PDF</button>
             <button class="btn btn-outline" onclick="app.exportAuditCSV()">📥 Ekspor Seluruh Aset (CSV)</button>
           </div>
         </div>
@@ -486,20 +508,18 @@
           </div>
         </div>
 
-        <div class="print-only print-signature">
+        <div class="print-signature report-signature">
           <div class="signature-box">
-            <p>Mengetahui,</p>
-            <p><strong>Manager IT Department</strong></p>
+            <p>Dibuat oleh,</p>
+            <p><strong>Admin IT / Mahasiswa PKL</strong></p>
             <div class="signature-space"></div>
-            <p class="signature-name">Ahmad Fauzi, S.Kom</p>
-            <p>NIP: AG-IT-001</p>
+            <p class="signature-name">________________________</p>
           </div>
           <div class="signature-box">
-            <p>Petugas Audit IT,</p>
-            <p><strong>IT Asset Specialist</strong></p>
+            <p>Diketahui oleh,</p>
+            <p><strong>Pembimbing Lapangan / Manager IT</strong></p>
             <div class="signature-space"></div>
-            <p class="signature-name" id="print-auditor-name">Admin IT</p>
-            <p>PT Agrinas Palma Nusantara</p>
+            <p class="signature-name">________________________</p>
           </div>
         </div>
       </div>
@@ -861,6 +881,40 @@
     </div>
   </div>
 
+  <!-- MODAL: QR LABEL ASET -->
+  <div id="modal-qr" class="modal-overlay">
+    <div class="modal-container qr-modal-container">
+      <div class="modal-header qr-modal-header">
+        <h3><span>▦</span> Label QR Code Aset</h3>
+        <button class="modal-close" data-close="modal-qr" aria-label="Tutup">&times;</button>
+      </div>
+      <div class="modal-body qr-modal-body">
+        <div class="qr-label" id="qr-print-label">
+          <div class="qr-label-header">
+            <img src="img/logo-agrinas.png" alt="Logo Agrinas">
+            <div>
+              <strong>PT AGRINAS PALMA NUSANTARA</strong>
+              <small>DIVISI IT INFRASTRUCTURE &amp; SUPPORT</small>
+            </div>
+          </div>
+          <div class="qr-label-content">
+            <div class="qr-code" id="asset-qr-code" aria-label="QR Code aset"></div>
+            <div class="qr-asset-details">
+              <strong id="qr-asset-code">-</strong>
+              <span id="qr-asset-name">-</span>
+              <span><b>Merk/Tipe:</b> <span id="qr-asset-model">-</span></span>
+              <span><b id="qr-asset-holder-label">Pemegang:</b> <span id="qr-asset-holder">-</span></span>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer qr-modal-actions">
+          <button type="button" class="btn btn-outline" data-close="modal-qr">Tutup</button>
+          <button type="button" class="btn btn-primary" id="btn-print-qr">🖨️ Cetak Label</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL: INFO AKUN -->
   <div id="modal-user-info" class="modal-overlay">
     <div class="modal-container">
@@ -898,6 +952,7 @@
   </div>
 
   <!-- SCRIPT LOGIKA APLIKASI (ES MODULE UNTUK FIREBASE SDK) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script type="module" src="app.js"></script>
 </body>
 </html>
