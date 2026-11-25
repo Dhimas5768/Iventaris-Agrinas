@@ -80,6 +80,8 @@ const State = {
   karyawan: [],
   hardware: [],
   network: [],
+  kendaraan: [],
+  kehadiran: [],
   unsubscribers: []
 };
 
@@ -87,6 +89,7 @@ const App = {
   currentView: 'dashboard',
   hardwareFilter: 'all',
   networkFilter: 'all',
+  attendanceDateFilter: '',
   globalKeyword: '',
 
   init() {
@@ -212,7 +215,21 @@ const App = {
       this.renderAll();
     });
 
-    State.unsubscribers = [unsubKaryawan, unsubHardware, unsubNetwork];
+    const unsubKendaraan = onSnapshot(collection(db, 'kendaraan'), (snapshot) => {
+      State.kendaraan = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      this.renderAll();
+    }, (error) => {
+      console.error('Gagal menyinkronkan data kendaraan:', error);
+    });
+
+    const unsubKehadiran = onSnapshot(collection(db, 'kehadiran'), (snapshot) => {
+      State.kehadiran = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      this.renderAll();
+    }, (error) => {
+      console.error('Gagal menyinkronkan data kehadiran:', error);
+    });
+
+    State.unsubscribers = [unsubKaryawan, unsubHardware, unsubNetwork, unsubKendaraan, unsubKehadiran];
   },
 
   stopRealtimeListeners() {
@@ -239,6 +256,8 @@ const App = {
       karyawan: { main: 'Data Karyawan', sub: 'Daftar Pegawai & Pemegang Aset' },
       hardware: { main: 'End-User Hardware', sub: 'Inventaris Komputer, Laptop & Printer' },
       network: { main: 'Network & Server', sub: 'Infrastruktur Jaringan & Server' },
+      kendaraan: { main: 'Kendaraan Operasional', sub: 'Inventaris dan Status Kendaraan' },
+      kehadiran: { main: 'Data Kehadiran', sub: 'Catatan Kehadiran Karyawan' },
       audit: { main: 'Laporan Audit', sub: 'Rekapitulasi Fisik & Cetak Berita Acara' },
       pengaturan: { main: 'Pengaturan', sub: 'Profil & Manajemen Cloud Firestore' }
     };
@@ -257,6 +276,8 @@ const App = {
       case 'karyawan': this.renderKaryawanTable(); break;
       case 'hardware': this.renderHardwareTable(); break;
       case 'network': this.renderNetworkTable(); break;
+      case 'kendaraan': this.renderKendaraanTable(); break;
+      case 'kehadiran': this.renderKehadiranTable(); break;
       case 'audit': this.renderAuditReport(); break;
     }
   },
@@ -266,12 +287,14 @@ const App = {
     this.renderKaryawanTable();
     this.renderHardwareTable();
     this.renderNetworkTable();
+    this.renderKendaraanTable();
+    this.renderKehadiranTable();
     this.renderAuditReport();
   },
 
   // --- DASHBOARD RENDERER ---
   renderDashboard() {
-    const { karyawan, hardware, network } = State;
+    const { karyawan, hardware, network, kendaraan, kehadiran } = State;
 
     let servisCount = 0;
     hardware.forEach(h => {
@@ -285,6 +308,12 @@ const App = {
     document.getElementById('stat-hardware').textContent = hardware.length;
     document.getElementById('stat-network').textContent = network.length;
     document.getElementById('stat-servis').textContent = servisCount;
+    const today = this.getTodayDate();
+    const todayAttendance = kehadiran.filter(item => item.tanggal === today);
+    const presentCount = todayAttendance.filter(item => item.status === 'Hadir').length;
+    const absentCount = todayAttendance.filter(item => item.status === 'Tidak Masuk / Alpa').length;
+    document.getElementById('stat-kendaraan').textContent = kendaraan.length;
+    document.getElementById('stat-kehadiran').textContent = `${presentCount} / ${absentCount}`;
 
     const recentTbody = document.getElementById('dashboard-recent-hardware');
     const keyword = (this.globalKeyword || '').toLowerCase().trim();
@@ -360,13 +389,16 @@ const App = {
       (k.nama || '').toLowerCase().includes(keyword) ||
       (k.nik || '').toLowerCase().includes(keyword) ||
       (k.divisi || '').toLowerCase().includes(keyword) ||
-      (k.jabatan || '').toLowerCase().includes(keyword)
+      (k.jabatan || '').toLowerCase().includes(keyword) ||
+      (k.tanggal_mulai || '').toLowerCase().includes(keyword) ||
+      (k.akhir_jabatan || '').toLowerCase().includes(keyword) ||
+      (k.status_jabatan || '').toLowerCase().includes(keyword)
     );
 
     document.getElementById('showing-karyawan').textContent = `Menampilkan ${filtered.length} dari ${State.karyawan.length} karyawan`;
 
     if (filtered.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" class="text-center" style="padding: 24px; color: var(--text-muted);">Tidak ada data karyawan yang cocok.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="text-center" style="padding: 24px; color: var(--text-muted);">Tidak ada data karyawan yang cocok.</td></tr>';
       return;
     }
 
@@ -379,6 +411,13 @@ const App = {
           <td><strong>${this.escape(k.nama)}</strong></td>
           <td>${this.escape(k.divisi)}</td>
           <td>${this.escape(k.jabatan)}</td>
+          <td>
+            <div class="tenure-cell">
+              <span>${this.formatDate(k.tanggal_mulai) || '-'}</span>
+              <small>${this.getTenureSummary(k)}</small>
+              ${this.getEmploymentBadge(k.status_jabatan)}
+            </div>
+          </td>
           <td><span class="badge ${deviceCount > 0 ? 'badge-info' : 'badge-gender'}">${deviceCount} Perangkat</span></td>
           <td style="text-align: center;">
             <div class="action-buttons" style="justify-content: center;">
@@ -403,9 +442,13 @@ const App = {
       document.getElementById('karyawan-nama').value = karyawan.nama;
       document.getElementById('karyawan-divisi').value = karyawan.divisi;
       document.getElementById('karyawan-jabatan').value = karyawan.jabatan;
+      document.getElementById('karyawan-tanggal-mulai').value = karyawan.tanggal_mulai || '';
+      document.getElementById('karyawan-akhir-jabatan').value = karyawan.akhir_jabatan || '';
+      document.getElementById('karyawan-status-jabatan').value = karyawan.status_jabatan || 'Karyawan Tetap';
     } else {
       title.innerHTML = '<span>👥</span> Tambah Data Karyawan';
       document.getElementById('karyawan-id').value = '';
+      document.getElementById('karyawan-status-jabatan').value = 'Karyawan Tetap';
     }
     this.openModal('modal-karyawan');
   },
@@ -417,7 +460,10 @@ const App = {
       nik: document.getElementById('karyawan-nik').value.trim(),
       nama: document.getElementById('karyawan-nama').value.trim(),
       divisi: document.getElementById('karyawan-divisi').value,
-      jabatan: document.getElementById('karyawan-jabatan').value.trim()
+      jabatan: document.getElementById('karyawan-jabatan').value.trim(),
+      tanggal_mulai: document.getElementById('karyawan-tanggal-mulai').value,
+      akhir_jabatan: document.getElementById('karyawan-akhir-jabatan').value,
+      status_jabatan: document.getElementById('karyawan-status-jabatan').value
     };
 
     try {
@@ -429,6 +475,12 @@ const App = {
           const affectedHw = State.hardware.filter(h => (h.pemegang || '').toLowerCase() === oldItem.nama.toLowerCase());
           for (const hw of affectedHw) {
             await updateDoc(doc(db, 'hardware', hw.id), { pemegang: payload.nama });
+          }
+          const affectedVehicles = State.kendaraan.filter(vehicle =>
+            (vehicle.pemegang || '').toLowerCase() === oldItem.nama.toLowerCase()
+          );
+          for (const vehicle of affectedVehicles) {
+            await updateDoc(doc(db, 'kendaraan', vehicle.id), { pemegang: payload.nama });
           }
         }
       } else {
@@ -707,6 +759,223 @@ const App = {
     }
   },
 
+  // --- CRUD: KENDARAAN OPERASIONAL ---
+  populateKendaraanPemegangDropdown(selectedPemegang = '') {
+    const select = document.getElementById('kendaraan-pemegang');
+    let options = '<option value="">Pilih karyawan...</option>';
+    options += State.karyawan.map(k => `
+      <option value="${this.escape(k.nama)}" ${k.nama === selectedPemegang ? 'selected' : ''}>
+        ${this.escape(k.nama)} (${this.escape(k.nik)})
+      </option>
+    `).join('');
+    if (selectedPemegang && !State.karyawan.some(k => k.nama === selectedPemegang)) {
+      options += `<option value="${this.escape(selectedPemegang)}" selected>${this.escape(selectedPemegang)}</option>`;
+    }
+    select.innerHTML = options;
+  },
+
+  renderKendaraanTable() {
+    const tbody = document.getElementById('table-kendaraan-body');
+    const keyword = this.globalKeyword.toLowerCase().trim();
+    const filtered = State.kendaraan.filter(item =>
+      [item.no_polisi, item.jenis, item.merk_tipe, item.tahun, item.pemegang, item.jatuh_tempo_stnk, item.kondisi]
+        .some(value => String(value || '').toLowerCase().includes(keyword))
+    );
+
+    document.getElementById('showing-kendaraan').textContent =
+      `Menampilkan ${filtered.length} dari ${State.kendaraan.length} kendaraan`;
+
+    if (filtered.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" class="text-center" style="padding: 24px; color: var(--text-muted);">Tidak ada data kendaraan yang cocok.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = filtered.map(item => `
+      <tr>
+        <td><span class="asset-tag">${this.escape(item.no_polisi)}</span></td>
+        <td>${this.escape(item.jenis)}</td>
+        <td><strong>${this.escape(item.merk_tipe)}</strong></td>
+        <td>${this.escape(item.tahun)}</td>
+        <td>${this.escape(item.pemegang)}</td>
+        <td>${this.formatDate(item.jatuh_tempo_stnk) || '-'}</td>
+        <td>${this.getVehicleConditionBadge(item.kondisi)}</td>
+        <td style="text-align: center;">
+          <div class="action-buttons" style="justify-content: center;">
+            <button class="btn-icon edit" title="Edit Kendaraan" onclick="app.editKendaraan('${item.id}')">✏️</button>
+            <button class="btn-icon delete" title="Hapus Kendaraan" onclick="app.deleteKendaraan('${item.id}')">🗑️</button>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+  },
+
+  openKendaraanModal(kendaraan = null) {
+    const form = document.getElementById('form-kendaraan');
+    form.reset();
+    this.populateKendaraanPemegangDropdown(kendaraan ? kendaraan.pemegang : '');
+    document.getElementById('modal-kendaraan-title').innerHTML = kendaraan
+      ? '<span>✏️</span> Edit Kendaraan'
+      : '<span>🚙</span> Tambah Kendaraan';
+    document.getElementById('kendaraan-id').value = kendaraan ? kendaraan.id : '';
+    document.getElementById('kendaraan-no-polisi').value = kendaraan ? kendaraan.no_polisi || '' : '';
+    document.getElementById('kendaraan-jenis').value = kendaraan ? kendaraan.jenis || '' : '';
+    document.getElementById('kendaraan-merk-tipe').value = kendaraan ? kendaraan.merk_tipe || '' : '';
+    document.getElementById('kendaraan-tahun').value = kendaraan ? kendaraan.tahun || '' : new Date().getFullYear();
+    document.getElementById('kendaraan-jatuh-tempo').value = kendaraan ? kendaraan.jatuh_tempo_stnk || '' : '';
+    document.getElementById('kendaraan-kondisi').value = kendaraan ? kendaraan.kondisi || 'Baik / Siap Pakai' : 'Baik / Siap Pakai';
+    this.openModal('modal-kendaraan');
+  },
+
+  async saveKendaraan(e) {
+    e.preventDefault();
+    const id = document.getElementById('kendaraan-id').value;
+    const payload = {
+      no_polisi: document.getElementById('kendaraan-no-polisi').value.trim().toUpperCase(),
+      jenis: document.getElementById('kendaraan-jenis').value,
+      merk_tipe: document.getElementById('kendaraan-merk-tipe').value.trim(),
+      tahun: Number(document.getElementById('kendaraan-tahun').value),
+      pemegang: document.getElementById('kendaraan-pemegang').value,
+      jatuh_tempo_stnk: document.getElementById('kendaraan-jatuh-tempo').value,
+      kondisi: document.getElementById('kendaraan-kondisi').value
+    };
+
+    try {
+      if (id) await updateDoc(doc(db, 'kendaraan', id), payload);
+      else await addDoc(collection(db, 'kendaraan'), payload);
+      this.closeModal('modal-kendaraan');
+    } catch (err) {
+      alert('Gagal menyimpan data kendaraan: ' + err.message);
+    }
+  },
+
+  editKendaraan(id) {
+    const item = State.kendaraan.find(kendaraan => kendaraan.id === id);
+    if (item) this.openKendaraanModal(item);
+  },
+
+  async deleteKendaraan(id) {
+    const item = State.kendaraan.find(kendaraan => kendaraan.id === id);
+    if (!item || !confirm(`Yakin ingin menghapus kendaraan [${item.no_polisi}] dari Cloud Firestore?`)) return;
+    try {
+      await deleteDoc(doc(db, 'kendaraan', id));
+    } catch (err) {
+      alert('Gagal menghapus data kendaraan: ' + err.message);
+    }
+  },
+
+  // --- CRUD: DATA KEHADIRAN ---
+  populateKehadiranKaryawanDropdown(selectedId = '', selectedName = '', selectedNik = '') {
+    const select = document.getElementById('kehadiran-karyawan');
+    let options = '<option value="">Pilih karyawan...</option>';
+    options += State.karyawan.map(k => `
+      <option value="${this.escape(k.id)}" data-name="${this.escape(k.nama)}" data-nik="${this.escape(k.nik)}" ${k.id === selectedId ? 'selected' : ''}>
+        ${this.escape(k.nama)} (${this.escape(k.nik)})
+      </option>
+    `).join('');
+    if (selectedId && !State.karyawan.some(k => k.id === selectedId)) {
+      options += `<option value="${this.escape(selectedId)}" data-name="${this.escape(selectedName)}" data-nik="${this.escape(selectedNik)}" selected>
+        ${this.escape(selectedName)} (${this.escape(selectedNik)})
+      </option>`;
+    }
+    select.innerHTML = options;
+  },
+
+  renderKehadiranTable() {
+    const tbody = document.getElementById('table-kehadiran-body');
+    const keyword = this.globalKeyword.toLowerCase().trim();
+    const filtered = State.kehadiran.filter(item => {
+      const matchDate = !this.attendanceDateFilter || item.tanggal === this.attendanceDateFilter;
+      const matchSearch = [
+        item.tanggal, item.nik_karyawan, item.nama_karyawan, item.status, item.jam_masuk, item.keterangan
+      ].some(value => String(value || '').toLowerCase().includes(keyword));
+      return matchDate && matchSearch;
+    });
+
+    document.getElementById('showing-kehadiran').textContent =
+      `Menampilkan ${filtered.length} dari ${State.kehadiran.length} catatan`;
+
+    if (filtered.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center" style="padding: 24px; color: var(--text-muted);">Tidak ada data kehadiran yang cocok.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = filtered.map(item => `
+      <tr>
+        <td>${this.formatDate(item.tanggal) || '-'}</td>
+        <td><span class="asset-tag">${this.escape(item.nik_karyawan || '-')}</span></td>
+        <td><strong>${this.escape(item.nama_karyawan)}</strong></td>
+        <td>${this.getAttendanceBadge(item.status)}</td>
+        <td>${this.escape(item.jam_masuk || '-')}</td>
+        <td>${this.escape(item.keterangan || '-')}</td>
+        <td style="text-align: center;">
+          <div class="action-buttons" style="justify-content: center;">
+            <button class="btn-icon edit" title="Edit Kehadiran" onclick="app.editKehadiran('${item.id}')">✏️</button>
+            <button class="btn-icon delete" title="Hapus Kehadiran" onclick="app.deleteKehadiran('${item.id}')">🗑️</button>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+  },
+
+  openKehadiranModal(kehadiran = null) {
+    const form = document.getElementById('form-kehadiran');
+    form.reset();
+    this.populateKehadiranKaryawanDropdown(
+      kehadiran ? kehadiran.karyawan_id : '',
+      kehadiran ? kehadiran.nama_karyawan : '',
+      kehadiran ? kehadiran.nik_karyawan : ''
+    );
+    document.getElementById('modal-kehadiran-title').innerHTML = kehadiran
+      ? '<span>✏️</span> Edit Kehadiran'
+      : '<span>🗓️</span> Catat Kehadiran';
+    document.getElementById('kehadiran-id').value = kehadiran ? kehadiran.id : '';
+    document.getElementById('kehadiran-tanggal').value = kehadiran ? kehadiran.tanggal || '' : this.getTodayDate();
+    document.getElementById('kehadiran-status').value = kehadiran ? kehadiran.status || 'Hadir' : 'Hadir';
+    document.getElementById('kehadiran-jam-masuk').value = kehadiran ? kehadiran.jam_masuk || '' : '';
+    document.getElementById('kehadiran-keterangan').value = kehadiran ? kehadiran.keterangan || '' : '';
+    this.openModal('modal-kehadiran');
+  },
+
+  async saveKehadiran(e) {
+    e.preventDefault();
+    const id = document.getElementById('kehadiran-id').value;
+    const employeeSelect = document.getElementById('kehadiran-karyawan');
+    const selectedEmployee = employeeSelect.options[employeeSelect.selectedIndex];
+    const status = document.getElementById('kehadiran-status').value;
+    const payload = {
+      tanggal: document.getElementById('kehadiran-tanggal').value,
+      karyawan_id: employeeSelect.value,
+      nama_karyawan: selectedEmployee.dataset.name || '',
+      nik_karyawan: selectedEmployee.dataset.nik || '',
+      status,
+      jam_masuk: status === 'Hadir' ? document.getElementById('kehadiran-jam-masuk').value : '',
+      keterangan: document.getElementById('kehadiran-keterangan').value.trim()
+    };
+
+    try {
+      if (id) await updateDoc(doc(db, 'kehadiran', id), payload);
+      else await addDoc(collection(db, 'kehadiran'), payload);
+      this.closeModal('modal-kehadiran');
+    } catch (err) {
+      alert('Gagal menyimpan data kehadiran: ' + err.message);
+    }
+  },
+
+  editKehadiran(id) {
+    const item = State.kehadiran.find(kehadiran => kehadiran.id === id);
+    if (item) this.openKehadiranModal(item);
+  },
+
+  async deleteKehadiran(id) {
+    const item = State.kehadiran.find(kehadiran => kehadiran.id === id);
+    if (!item || !confirm(`Yakin ingin menghapus catatan kehadiran ${item.nama_karyawan} tanggal ${item.tanggal}?`)) return;
+    try {
+      await deleteDoc(doc(db, 'kehadiran', id));
+    } catch (err) {
+      alert('Gagal menghapus data kehadiran: ' + err.message);
+    }
+  },
+
   // --- LAPORAN AUDIT & REKAPITULASI ---
   renderAuditReport() {
     const { hardware, network } = State;
@@ -790,10 +1059,15 @@ const App = {
     URL.revokeObjectURL(url);
   },
 
+  csvCell(value) {
+    return `"${String(value == null ? '' : value).replace(/"/g, '""')}"`;
+  },
+
   exportKaryawanCSV() {
-    let csv = 'No,NIK/NIP,Nama Lengkap,Divisi/Departemen,Jabatan\n';
+    let csv = 'No,NIK/NIP,Nama Lengkap,Divisi/Departemen,Jabatan,Tanggal Mulai,Akhir Masa Jabatan,Status Kepegawaian\n';
     State.karyawan.forEach((k, idx) => {
-      csv += `"${idx + 1}","${k.nik}","${k.nama}","${k.divisi}","${k.jabatan}"\n`;
+      csv += [idx + 1, k.nik, k.nama, k.divisi, k.jabatan, k.tanggal_mulai, k.akhir_jabatan, k.status_jabatan]
+        .map(value => this.csvCell(value)).join(',') + '\n';
     });
     this.downloadCSV('Data_Karyawan_Agrinas.csv', csv);
   },
@@ -812,6 +1086,24 @@ const App = {
       csv += `"${n.kode}","${n.nama}","${n.kategori}","${n.ip || '-'}","${n.mac || '-'}","${n.lokasi}","${n.status}"\n`;
     });
     this.downloadCSV('Network_Server_Agrinas.csv', csv);
+  },
+
+  exportKendaraanCSV() {
+    let csv = 'No Polisi,Jenis Kendaraan,Merk & Tipe,Tahun,Pemegang,Jatuh Tempo Pajak / STNK,Kondisi\n';
+    State.kendaraan.forEach(item => {
+      csv += [item.no_polisi, item.jenis, item.merk_tipe, item.tahun, item.pemegang, item.jatuh_tempo_stnk, item.kondisi]
+        .map(value => this.csvCell(value)).join(',') + '\n';
+    });
+    this.downloadCSV('Kendaraan_Operasional_Agrinas.csv', csv);
+  },
+
+  exportKehadiranCSV() {
+    let csv = 'Tanggal,NIK,Nama Karyawan,Status,Jam Masuk,Keterangan\n';
+    State.kehadiran.forEach(item => {
+      csv += [item.tanggal, item.nik_karyawan, item.nama_karyawan, item.status, item.jam_masuk, item.keterangan]
+        .map(value => this.csvCell(value)).join(',') + '\n';
+    });
+    this.downloadCSV('Data_Kehadiran_Agrinas.csv', csv);
   },
 
   exportAuditCSV() {
@@ -859,7 +1151,9 @@ const App = {
       exportedAt: new Date().toISOString(),
       karyawan: State.karyawan,
       hardware: State.hardware,
-      network: State.network
+      network: State.network,
+      kendaraan: State.kendaraan,
+      kehadiran: State.kehadiran
     }, null, 2);
 
     const date = new Date().toISOString().slice(0, 10);
@@ -904,6 +1198,18 @@ const App = {
             await addDoc(collection(db, 'network'), rest);
           }
         }
+        if (Array.isArray(data.kendaraan)) {
+          for (const item of data.kendaraan) {
+            const { id, ...rest } = item;
+            await addDoc(collection(db, 'kendaraan'), rest);
+          }
+        }
+        if (Array.isArray(data.kehadiran)) {
+          for (const item of data.kehadiran) {
+            const { id, ...rest } = item;
+            await addDoc(collection(db, 'kehadiran'), rest);
+          }
+        }
         fileInput.value = '';
         alert('Data JSON berhasil diunggah ke Cloud Firestore!');
       } catch (err) {
@@ -944,7 +1250,10 @@ const App = {
       (item.nama || '').toLowerCase().includes(k) ||
       (item.nik || '').toLowerCase().includes(k) ||
       (item.divisi || '').toLowerCase().includes(k) ||
-      (item.jabatan || '').toLowerCase().includes(k)
+      (item.jabatan || '').toLowerCase().includes(k) ||
+      (item.tanggal_mulai || '').toLowerCase().includes(k) ||
+      (item.akhir_jabatan || '').toLowerCase().includes(k) ||
+      (item.status_jabatan || '').toLowerCase().includes(k)
     );
 
     const matchedHardware = State.hardware.filter(item =>
@@ -965,11 +1274,24 @@ const App = {
       (item.lokasi || '').toLowerCase().includes(k)
     );
 
+    const matchedKendaraan = State.kendaraan.filter(item =>
+      [item.no_polisi, item.jenis, item.merk_tipe, item.tahun, item.pemegang, item.jatuh_tempo_stnk, item.kondisi]
+        .some(value => String(value || '').toLowerCase().includes(k))
+    );
+
+    const matchedKehadiran = State.kehadiran.filter(item =>
+      [item.tanggal, item.nik_karyawan, item.nama_karyawan, item.status, item.jam_masuk, item.keterangan]
+        .some(value => String(value || '').toLowerCase().includes(k))
+    );
+
     return {
       karyawan: matchedKaryawan,
       hardware: matchedHardware,
       network: matchedNetwork,
-      total: matchedKaryawan.length + matchedHardware.length + matchedNetwork.length
+      kendaraan: matchedKendaraan,
+      kehadiran: matchedKehadiran,
+      total: matchedKaryawan.length + matchedHardware.length + matchedNetwork.length +
+        matchedKendaraan.length + matchedKehadiran.length
     };
   },
 
@@ -1026,15 +1348,100 @@ const App = {
       });
     }
 
+    if (results.kendaraan.length > 0) {
+      html += `<div class="search-result-group"><span>🚙 Kendaraan Operasional (${results.kendaraan.length})</span></div>`;
+      results.kendaraan.slice(0, 4).forEach(item => {
+        html += `
+          <div class="search-result-item" onclick="app.selectSearchResult('kendaraan')">
+            <div class="item-main">
+              <div class="item-title">${this.escape(item.no_polisi)} &bull; ${this.escape(item.merk_tipe)}</div>
+              <div class="item-sub">${this.escape(item.jenis)} | Pemegang: ${this.escape(item.pemegang)}</div>
+            </div>
+            ${this.getVehicleConditionBadge(item.kondisi)}
+          </div>
+        `;
+      });
+    }
+
+    if (results.kehadiran.length > 0) {
+      html += `<div class="search-result-group"><span>🗓️ Data Kehadiran (${results.kehadiran.length})</span></div>`;
+      results.kehadiran.slice(0, 4).forEach(item => {
+        html += `
+          <div class="search-result-item" onclick="app.selectSearchResult('kehadiran')">
+            <div class="item-main">
+              <div class="item-title">${this.escape(item.nama_karyawan)} &bull; ${this.escape(item.tanggal)}</div>
+              <div class="item-sub">${this.escape(item.nik_karyawan || '-')} | ${this.escape(item.jam_masuk || 'Tanpa jam masuk')}</div>
+            </div>
+            ${this.getAttendanceBadge(item.status)}
+          </div>
+        `;
+      });
+    }
+
     container.innerHTML = html;
   },
 
   selectSearchResult(viewId) {
     document.getElementById('search-results-popup').classList.remove('show');
+    if (viewId === 'kehadiran') {
+      this.attendanceDateFilter = '';
+      document.getElementById('filter-kehadiran-tanggal').value = '';
+    }
     this.navigateTo(viewId);
   },
 
   // --- HELPERS ---
+  getTodayDate() {
+    const now = new Date();
+    const localDate = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+    return localDate.toISOString().slice(0, 10);
+  },
+
+  formatDate(date) {
+    if (!date) return '';
+    const parsedDate = new Date(`${date}T00:00:00`);
+    return Number.isNaN(parsedDate.getTime())
+      ? this.escape(date)
+      : parsedDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+  },
+
+  getTenureSummary(karyawan) {
+    if (karyawan.status_jabatan === 'Karyawan Tetap' || (!karyawan.status_jabatan && !karyawan.akhir_jabatan)) return 'Tetap';
+    if (!karyawan.akhir_jabatan) return 'Tanpa tanggal akhir';
+    const today = new Date(`${this.getTodayDate()}T00:00:00`);
+    const endDate = new Date(`${karyawan.akhir_jabatan}T00:00:00`);
+    if (Number.isNaN(endDate.getTime())) return 'Tanggal akhir tidak valid';
+    const daysRemaining = Math.ceil((endDate.getTime() - today.getTime()) / 86400000);
+    const endDateLabel = this.formatDate(karyawan.akhir_jabatan);
+    if (daysRemaining < 0) return `Akhir ${endDateLabel} - berakhir ${Math.abs(daysRemaining)} hari lalu`;
+    if (daysRemaining === 0) return `Akhir ${endDateLabel} - berakhir hari ini`;
+    return `Akhir ${endDateLabel} - sisa ${daysRemaining} hari`;
+  },
+
+  getEmploymentBadge(status) {
+    const value = status || 'Karyawan Tetap';
+    let style = 'badge-success';
+    if (value === 'Kontrak (PKWT)') style = 'badge-info';
+    if (value === 'Masa Percobaan') style = 'badge-warning';
+    if (value === 'Selesai / Pensiun') style = 'badge-danger';
+    return `<span class="badge ${style}">${this.escape(value)}</span>`;
+  },
+
+  getVehicleConditionBadge(status) {
+    let style = 'badge-success';
+    if (status === 'Perawatan / Servis') style = 'badge-warning';
+    if (status === 'Rusak') style = 'badge-danger';
+    return `<span class="badge ${style}">${this.escape(status || '-')}</span>`;
+  },
+
+  getAttendanceBadge(status) {
+    let style = 'badge-danger';
+    if (status === 'Hadir') style = 'badge-success';
+    if (status === 'Izin' || status === 'Cuti') style = 'badge-warning';
+    if (status === 'Sakit') style = 'badge-info';
+    return `<span class="badge ${style}">${this.escape(status || '-')}</span>`;
+  },
+
   getStatusBadge(status) {
     const s = (status || '').toLowerCase();
     if (s === 'aktif' || s === 'online') return `<span class="badge-status active">${this.escape(status)}</span>`;
@@ -1052,6 +1459,14 @@ const App = {
 
   // --- EVENT BINDING ---
   bindEvents() {
+    const dateFilter = document.getElementById('filter-kehadiran-tanggal');
+    dateFilter.value = this.getTodayDate();
+    this.attendanceDateFilter = dateFilter.value;
+    dateFilter.addEventListener('change', () => {
+      this.attendanceDateFilter = dateFilter.value;
+      this.renderKehadiranTable();
+    });
+
     document.getElementById('form-login').addEventListener('submit', (e) => {
       e.preventDefault();
       const email = document.getElementById('login-email').value;
@@ -1108,6 +1523,12 @@ const App = {
       if (results.hardware.length > 0) this.navigateTo('hardware');
       else if (results.karyawan.length > 0) this.navigateTo('karyawan');
       else if (results.network.length > 0) this.navigateTo('network');
+      else if (results.kendaraan.length > 0) this.navigateTo('kendaraan');
+      else if (results.kehadiran.length > 0) {
+        this.attendanceDateFilter = '';
+        dateFilter.value = '';
+        this.navigateTo('kehadiran');
+      }
       else this.renderCurrentView();
       searchPopup.classList.remove('show');
     });
@@ -1153,11 +1574,15 @@ const App = {
     document.getElementById('form-karyawan').addEventListener('submit', (e) => this.saveKaryawan(e));
     document.getElementById('form-hardware').addEventListener('submit', (e) => this.saveHardware(e));
     document.getElementById('form-network').addEventListener('submit', (e) => this.saveNetwork(e));
+    document.getElementById('form-kendaraan').addEventListener('submit', (e) => this.saveKendaraan(e));
+    document.getElementById('form-kehadiran').addEventListener('submit', (e) => this.saveKehadiran(e));
     document.getElementById('form-update-profile').addEventListener('submit', (e) => this.saveProfile(e));
 
     document.getElementById('btn-tambah-karyawan').addEventListener('click', () => this.openKaryawanModal());
     document.getElementById('btn-tambah-hardware').addEventListener('click', () => this.openHardwareModal());
     document.getElementById('btn-tambah-network').addEventListener('click', () => this.openNetworkModal());
+    document.getElementById('btn-tambah-kendaraan').addEventListener('click', () => this.openKendaraanModal());
+    document.getElementById('btn-tambah-kehadiran').addEventListener('click', () => this.openKehadiranModal());
   }
 };
 

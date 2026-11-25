@@ -69,6 +69,14 @@
         <span class="nav-icon">🌐</span>
         <span>Network &amp; Server</span>
       </a>
+      <a href="#kendaraan" class="nav-link" data-view="kendaraan">
+        <span class="nav-icon">🚙</span>
+        <span>Kendaraan Operasional</span>
+      </a>
+      <a href="#kehadiran" class="nav-link" data-view="kehadiran">
+        <span class="nav-icon">🗓️</span>
+        <span>Data Kehadiran</span>
+      </a>
 
       <div class="nav-section">Lainnya</div>
       <a href="#audit" class="nav-link" data-view="audit">
@@ -101,7 +109,7 @@
               <circle cx="11" cy="11" r="8"></circle>
               <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>
-            <input type="text" id="global-search-input" placeholder="Cari Data Karyawan, Perangkat, S/N, IP..." autocomplete="off">
+            <input type="text" id="global-search-input" placeholder="Cari karyawan, aset, kendaraan, kehadiran, S/N, IP..." autocomplete="off">
             <button type="button" class="search-btn" id="btn-global-search">Cari</button>
           </div>
 
@@ -175,6 +183,20 @@
               <p>Perlu Servis / Rusak</p>
             </div>
           </div>
+          <div class="summary-card" onclick="app.navigateTo('kendaraan')" style="cursor: pointer;">
+            <div class="card-icon orange">🚙</div>
+            <div class="card-info">
+              <h3 id="stat-kendaraan">0</h3>
+              <p>Kendaraan Operasional</p>
+            </div>
+          </div>
+          <div class="summary-card" onclick="app.navigateTo('kehadiran')" style="cursor: pointer;">
+            <div class="card-icon blue">🗓️</div>
+            <div class="card-info">
+              <h3 id="stat-kehadiran">0 / 0</h3>
+              <p>Hadir / Tidak Masuk Hari Ini</p>
+            </div>
+          </div>
         </section>
 
         <div class="dashboard-grid">
@@ -230,6 +252,7 @@
                   <th>Nama Lengkap</th>
                   <th>Divisi / Departemen</th>
                   <th>Jabatan</th>
+                  <th>Masa Jabatan</th>
                   <th>Jumlah Perangkat</th>
                   <th style="text-align: center;">Aksi</th>
                 </tr>
@@ -322,6 +345,75 @@
           </div>
           <div class="table-footer">
             <div class="showing" id="showing-network">Menampilkan 0 perangkat</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== VIEW: KENDARAAN OPERASIONAL ==================== -->
+      <div id="view-kendaraan" class="view-section">
+        <div class="section-header">
+          <h2><span class="section-icon">🚙</span> Kendaraan Operasional</h2>
+          <div class="section-actions">
+            <button class="btn btn-primary" id="btn-tambah-kendaraan">+ Tambah Kendaraan</button>
+            <button class="btn btn-outline" onclick="app.exportKendaraanCSV()">📥 Ekspor CSV</button>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>No Polisi</th>
+                  <th>Jenis Kendaraan</th>
+                  <th>Merk &amp; Tipe</th>
+                  <th>Tahun</th>
+                  <th>Pemegang</th>
+                  <th>Jatuh Tempo STNK</th>
+                  <th>Kondisi</th>
+                  <th style="text-align: center;">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="table-kendaraan-body"></tbody>
+            </table>
+          </div>
+          <div class="table-footer">
+            <div class="showing" id="showing-kendaraan">Menampilkan 0 kendaraan</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== VIEW: DATA KEHADIRAN ==================== -->
+      <div id="view-kehadiran" class="view-section">
+        <div class="section-header">
+          <h2><span class="section-icon">🗓️</span> Data Kehadiran</h2>
+          <div class="section-actions">
+            <div class="form-group attendance-date-filter">
+              <label for="filter-kehadiran-tanggal">Filter Tanggal</label>
+              <input type="date" id="filter-kehadiran-tanggal">
+            </div>
+            <button class="btn btn-primary" id="btn-tambah-kehadiran">+ Catat Kehadiran</button>
+            <button class="btn btn-outline" onclick="app.exportKehadiranCSV()">📥 Ekspor CSV</button>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tanggal</th>
+                  <th>NIK</th>
+                  <th>Nama Karyawan</th>
+                  <th>Status Kehadiran</th>
+                  <th>Jam Masuk</th>
+                  <th>Keterangan</th>
+                  <th style="text-align: center;">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="table-kehadiran-body"></tbody>
+            </table>
+          </div>
+          <div class="table-footer">
+            <div class="showing" id="showing-kehadiran">Menampilkan 0 catatan</div>
           </div>
         </div>
       </div>
@@ -510,6 +602,23 @@
               <label for="karyawan-jabatan">Jabatan <span style="color:var(--danger)">*</span></label>
               <input type="text" id="karyawan-jabatan" required placeholder="Contoh: Staff IT">
             </div>
+            <div class="form-group">
+              <label for="karyawan-tanggal-mulai">Tanggal Mulai Menjabat</label>
+              <input type="date" id="karyawan-tanggal-mulai">
+            </div>
+            <div class="form-group">
+              <label for="karyawan-akhir-jabatan">Akhir Masa Jabatan / Kontrak</label>
+              <input type="date" id="karyawan-akhir-jabatan">
+            </div>
+            <div class="form-group col-span-2">
+              <label for="karyawan-status-jabatan">Status Kepegawaian</label>
+              <select id="karyawan-status-jabatan">
+                <option value="Karyawan Tetap">Karyawan Tetap</option>
+                <option value="Kontrak (PKWT)">Kontrak (PKWT)</option>
+                <option value="Masa Percobaan">Masa Percobaan</option>
+                <option value="Selesai / Pensiun">Selesai / Pensiun</option>
+              </select>
+            </div>
           </div>
         </div>
         <div class="modal-footer">
@@ -641,6 +750,112 @@
         <div class="modal-footer">
           <button type="button" class="btn btn-outline" data-close="modal-network">Batal</button>
           <button type="submit" class="btn btn-primary">Simpan Perangkat</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: KENDARAAN OPERASIONAL -->
+  <div id="modal-kendaraan" class="modal-overlay">
+    <div class="modal-container modal-lg">
+      <div class="modal-header">
+        <h3 id="modal-kendaraan-title"><span>🚙</span> Tambah Kendaraan</h3>
+        <button class="modal-close" data-close="modal-kendaraan">&times;</button>
+      </div>
+      <form id="form-kendaraan">
+        <input type="hidden" id="kendaraan-id">
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="kendaraan-no-polisi">Nomor Polisi / Plat</label>
+              <input type="text" id="kendaraan-no-polisi" required placeholder="Contoh: KB 1234 XX">
+            </div>
+            <div class="form-group">
+              <label for="kendaraan-jenis">Jenis Kendaraan</label>
+              <select id="kendaraan-jenis" required>
+                <option value="">Pilih Jenis...</option>
+                <option value="Mobil Operasional">Mobil Operasional</option>
+                <option value="Motor Dinas">Motor Dinas</option>
+                <option value="Truk / Angkutan">Truk / Angkutan</option>
+                <option value="Alat Berat">Alat Berat</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="kendaraan-merk-tipe">Merk &amp; Tipe</label>
+              <input type="text" id="kendaraan-merk-tipe" required placeholder="Contoh: Toyota Hilux 4x4">
+            </div>
+            <div class="form-group">
+              <label for="kendaraan-tahun">Tahun</label>
+              <input type="number" id="kendaraan-tahun" min="1900" max="2100" required>
+            </div>
+            <div class="form-group">
+              <label for="kendaraan-pemegang">Pemegang / Penanggung Jawab</label>
+              <select id="kendaraan-pemegang" required></select>
+            </div>
+            <div class="form-group">
+              <label for="kendaraan-jatuh-tempo">Jatuh Tempo Pajak / STNK</label>
+              <input type="date" id="kendaraan-jatuh-tempo" required>
+            </div>
+            <div class="form-group col-span-2">
+              <label for="kendaraan-kondisi">Kondisi</label>
+              <select id="kendaraan-kondisi" required>
+                <option value="Baik / Siap Pakai">Baik / Siap Pakai</option>
+                <option value="Perawatan / Servis">Perawatan / Servis</option>
+                <option value="Rusak">Rusak</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" data-close="modal-kendaraan">Batal</button>
+          <button type="submit" class="btn btn-primary">Simpan Kendaraan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: DATA KEHADIRAN -->
+  <div id="modal-kehadiran" class="modal-overlay">
+    <div class="modal-container modal-lg">
+      <div class="modal-header">
+        <h3 id="modal-kehadiran-title"><span>🗓️</span> Catat Kehadiran</h3>
+        <button class="modal-close" data-close="modal-kehadiran">&times;</button>
+      </div>
+      <form id="form-kehadiran">
+        <input type="hidden" id="kehadiran-id">
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="kehadiran-tanggal">Tanggal</label>
+              <input type="date" id="kehadiran-tanggal" required>
+            </div>
+            <div class="form-group">
+              <label for="kehadiran-karyawan">Nama Karyawan &amp; NIK</label>
+              <select id="kehadiran-karyawan" required></select>
+            </div>
+            <div class="form-group">
+              <label for="kehadiran-status">Status Kehadiran</label>
+              <select id="kehadiran-status" required>
+                <option value="Hadir">Hadir</option>
+                <option value="Izin">Izin</option>
+                <option value="Sakit">Sakit</option>
+                <option value="Cuti">Cuti</option>
+                <option value="Tidak Masuk / Alpa">Tidak Masuk / Alpa</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="kehadiran-jam-masuk">Jam Masuk</label>
+              <input type="time" id="kehadiran-jam-masuk">
+            </div>
+            <div class="form-group col-span-2">
+              <label for="kehadiran-keterangan">Keterangan</label>
+              <input type="text" id="kehadiran-keterangan" placeholder="Contoh: Dinas luar kebun atau Surat dokter">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" data-close="modal-kehadiran">Batal</button>
+          <button type="submit" class="btn btn-primary">Simpan Kehadiran</button>
         </div>
       </form>
     </div>
