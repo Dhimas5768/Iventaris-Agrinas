@@ -93,8 +93,13 @@ const App = {
   networkStatusFilter: 'all',
   attendanceDateFilter: '',
   globalKeyword: '',
+  dateRefreshTimer: null,
 
   init() {
+    this.updateHeaderDate();
+    if (!this.dateRefreshTimer) {
+      this.dateRefreshTimer = setInterval(() => this.updateHeaderDate(), 60000);
+    }
     this.bindEvents();
     this.listenAuthState();
   },
@@ -254,17 +259,17 @@ const App = {
     if (targetView) targetView.classList.add('active');
 
     const titles = {
-      dashboard: { main: 'Dashboard', sub: 'Ringkasan Sistem & Statistik' },
-      karyawan: { main: 'Data Karyawan', sub: 'Daftar Pegawai & Pemegang Aset' },
-      hardware: { main: 'End-User Hardware', sub: 'Inventaris Komputer, Laptop & Printer' },
-      network: { main: 'Network & Server', sub: 'Infrastruktur Jaringan & Server' },
-      kendaraan: { main: 'Kendaraan Operasional', sub: 'Inventaris dan Status Kendaraan' },
-      kehadiran: { main: 'Data Kehadiran', sub: 'Catatan Kehadiran Karyawan' },
-      audit: { main: 'Laporan Audit', sub: 'Rekapitulasi Fisik & Cetak Berita Acara' },
-      pengaturan: { main: 'Pengaturan', sub: 'Profil & Manajemen Cloud Firestore' }
+      dashboard: { main: 'Dashboard Utama Aset', sub: 'RINGKASAN SISTEM & STATISTIK' },
+      karyawan: { main: 'Data Karyawan', sub: 'DAFTAR PEGAWAI & PEMEGANG ASET' },
+      hardware: { main: 'End-User Hardware', sub: 'INVENTARIS KOMPUTER, LAPTOP & PRINTER' },
+      network: { main: 'Network & Server', sub: 'INFRASTRUKTUR JARINGAN & SERVER' },
+      kendaraan: { main: 'Kendaraan Operasional', sub: 'INVENTARIS DAN STATUS KENDARAAN' },
+      kehadiran: { main: 'Data Kehadiran', sub: 'CATATAN KEHADIRAN KARYAWAN' },
+      audit: { main: 'Laporan Audit', sub: 'REKAPITULASI FISIK & CETAK BERITA ACARA' },
+      pengaturan: { main: 'Pengaturan Sistem', sub: 'PROFIL & MANAJEMEN CLOUD FIRESTORE' }
     };
 
-    const titleInfo = titles[viewId] || { main: 'Inventaris', sub: 'Agrinas IT' };
+    const titleInfo = titles[viewId] || { main: 'Inventaris', sub: 'PT AGRINAS PALMA NUSANTARA' };
     document.getElementById('page-breadcrumb-main').textContent = titleInfo.main;
     document.getElementById('page-breadcrumb-sub').textContent = titleInfo.sub;
 
@@ -1476,6 +1481,17 @@ const App = {
   },
 
   // --- HELPERS ---
+  updateHeaderDate() {
+    const dateElement = document.getElementById('header-current-date');
+    if (!dateElement) return;
+    dateElement.textContent = new Intl.DateTimeFormat('id-ID', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    }).format(new Date());
+  },
+
   getTodayDate() {
     const now = new Date();
     const localDate = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
