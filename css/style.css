@@ -893,13 +893,33 @@ tbody td.muted {
 
 /* --- Asset Tag --- */
 .asset-tag {
+  display: inline-block;
   font-family: var(--font-mono);
   font-size: 0.82rem;
   font-weight: 600;
+  white-space: nowrap;
+  vertical-align: middle;
   color: var(--primary);
   background: var(--surface-success);
   padding: 3px 8px;
   border-radius: 4px;
+}
+
+#view-dashboard .table-scroll th:first-child,
+#view-dashboard .table-scroll td:first-child,
+#view-hardware .table-scroll th:first-child,
+#view-hardware .table-scroll td:first-child,
+#view-network .table-scroll th:first-child,
+#view-network .table-scroll td:first-child,
+#view-audit > .table-wrapper .table-scroll th:nth-child(2),
+#view-audit > .table-wrapper .table-scroll td:nth-child(2),
+#view-karyawan .table-karyawan th:nth-child(2),
+#view-karyawan .table-karyawan td:nth-child(2),
+#view-kehadiran .table-scroll th:nth-child(2),
+#view-kehadiran .table-scroll td:nth-child(2),
+#view-audit .table-karyawan-audit th:nth-child(2),
+#view-audit .table-karyawan-audit td:nth-child(2) {
+  min-width: 140px;
 }
 
 .serial-num {
