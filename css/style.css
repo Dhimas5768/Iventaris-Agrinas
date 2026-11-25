@@ -1983,3 +1983,10 @@ tbody td.muted {
     display: flex !important;
   }
 }
+
+header img, .topbar img, .top-header img, .header-left img {
+  max-height: 36px !important;
+  width: auto !important;
+  max-width: 140px !important;
+  object-fit: contain !important;
+}
