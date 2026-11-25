@@ -27,7 +27,8 @@ import {
   onSnapshot,
   query,
   orderBy,
-  limit
+  limit,
+  serverTimestamp
 } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 
 // =======================================================================
@@ -288,6 +289,7 @@ const App = {
     }
     if (State.adminEmails.includes(email)) {
       this.setAdminAccessStatus('Email tersebut sudah terdaftar sebagai Admin IT.', true);
+      this.showToast('Email tersebut sudah terdaftar sebagai Admin IT.', 'warning');
       return;
     }
 
@@ -295,18 +297,24 @@ const App = {
       await this.saveAdminEmailList([...State.adminEmails, email]);
       input.value = '';
       this.setAdminAccessStatus(`Akses Admin IT ditambahkan untuk ${email}.`);
+      this.showToast('Akses Admin IT berhasil ditambahkan.');
     } catch (error) {
       console.error('Gagal menambahkan Admin IT:', error);
       this.setAdminAccessStatus('Gagal menyimpan perubahan akses Admin. Silakan coba kembali.', true);
+      this.showToast('Gagal menambahkan akses Admin IT.', 'error');
     }
   },
 
   async removeAdminEmail(email) {
     if (!this.requireAdmin()) return;
     const normalizedEmail = email.trim().toLowerCase();
-    if (!State.adminEmails.includes(normalizedEmail)) return;
+    if (!State.adminEmails.includes(normalizedEmail)) {
+      this.showToast('Email Admin IT tidak ditemukan.', 'warning');
+      return;
+    }
     if (State.adminEmails.length <= 1) {
       this.setAdminAccessStatus('Minimal satu Admin IT harus tetap terdaftar.', true);
+      this.showToast('Minimal satu Admin IT harus tetap terdaftar.', 'warning');
       return;
     }
     if (!confirm(`Hapus ${normalizedEmail} dari daftar Admin IT?`)) return;
@@ -320,9 +328,11 @@ const App = {
       } else {
         this.setAdminAccessStatus(`Akses Admin IT untuk ${normalizedEmail} telah dihapus.`);
       }
+      this.showToast('Akses Admin IT berhasil dihapus.');
     } catch (error) {
       console.error('Gagal menghapus Admin IT:', error);
       this.setAdminAccessStatus('Gagal menyimpan perubahan akses Admin. Silakan coba kembali.', true);
+      this.showToast('Gagal menghapus akses Admin IT.', 'error');
     }
   },
 
@@ -332,6 +342,45 @@ const App = {
     return false;
   },
 
+  showToast(message, type = 'success') {
+    const region = document.querySelector('.toast-region');
+    if (!region) return;
+
+    while (region.children.length >= 4) {
+      region.firstElementChild.remove();
+    }
+
+    const toast = document.createElement('div');
+    toast.className = `app-toast app-toast--${type}`;
+    toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+    toast.textContent = message;
+    region.appendChild(toast);
+
+    window.setTimeout(() => {
+      toast.classList.add('is-leaving');
+      window.setTimeout(() => toast.remove(), 180);
+    }, 4500);
+  },
+
+  async findDuplicateRecord(collectionNames, fieldName, value, excludedCollection = '', excludedId = '') {
+    const normalizedValue = String(value || '').trim().toLowerCase();
+    if (!normalizedValue) return null;
+
+    const snapshots = await Promise.all(
+      collectionNames.map(collectionName => getDocs(collection(db, collectionName)))
+    );
+
+    for (let index = 0; index < collectionNames.length; index += 1) {
+      const collectionName = collectionNames[index];
+      const duplicate = snapshots[index].docs.find(record => {
+        if (collectionName === excludedCollection && record.id === excludedId) return false;
+        return String(record.data()[fieldName] || '').trim().toLowerCase() === normalizedValue;
+      });
+      if (duplicate) return { collectionName, record: duplicate.data() };
+    }
+    return null;
+  },
+
   // --- SEED DATA AWAL JIKA KOLEKSI MASIH KOSONG ---
   async seedIfEmpty() {
     if (!this.isAdmin()) return;
@@ -339,19 +388,19 @@ const App = {
       const kSnap = await getDocs(collection(db, 'karyawan'));
       if (kSnap.empty) {
         for (const item of DEFAULT_KARYAWAN) {
-          await addDoc(collection(db, 'karyawan'), item);
+          await addDoc(collection(db, 'karyawan'), { ...item, updatedAt: serverTimestamp() });
         }
       }
       const hSnap = await getDocs(collection(db, 'hardware'));
       if (hSnap.empty) {
         for (const item of DEFAULT_HARDWARE) {
-          await addDoc(collection(db, 'hardware'), item);
+          await addDoc(collection(db, 'hardware'), { ...item, updatedAt: serverTimestamp() });
         }
       }
       const nSnap = await getDocs(collection(db, 'network'));
       if (nSnap.empty) {
         for (const item of DEFAULT_NETWORK) {
-          await addDoc(collection(db, 'network'), item);
+          await addDoc(collection(db, 'network'), { ...item, updatedAt: serverTimestamp() });
         }
       }
     } catch (err) {
@@ -418,6 +467,7 @@ const App = {
     const unsubActivityLogs = onSnapshot(activityQuery, (snapshot) => {
       State.activityLogs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       this.renderDashboard();
+      this.renderDataUpdateStamp();
     }, (error) => {
       console.error('Gagal menyinkronkan riwayat aktivitas:', error);
     });
@@ -461,7 +511,7 @@ const App = {
       kendaraan: { main: 'Kendaraan Operasional', sub: 'INVENTARIS DAN STATUS KENDARAAN' },
       kehadiran: { main: 'Data Kehadiran', sub: 'CATATAN KEHADIRAN KARYAWAN' },
       audit: { main: 'Laporan Audit', sub: 'REKAPITULASI FISIK & CETAK BERITA ACARA' },
-      pengaturan: { main: 'Pengaturan Sistem', sub: 'PROFIL & MANAJEMEN CLOUD FIRESTORE' }
+      pengaturan: { main: 'Pengaturan Sistem', sub: 'PROFIL AKUN & PENGATURAN SISTEM' }
     };
 
     const titleInfo = titles[viewId] || { main: 'Inventaris', sub: 'PT AGRINAS PALMA NUSANTARA' };
@@ -492,6 +542,7 @@ const App = {
     this.renderKendaraanTable();
     this.renderKehadiranTable();
     this.renderAuditReport();
+    this.renderDataUpdateStamp();
   },
 
   // --- DASHBOARD RENDERER ---
@@ -753,10 +804,17 @@ const App = {
       keteranganInventaris: document.getElementById('karyawan-keterangan-inventaris').value.trim(),
       tanggal_mulai: document.getElementById('karyawan-tanggal-mulai').value,
       akhir_jabatan: document.getElementById('karyawan-akhir-jabatan').value,
-      status_jabatan: document.getElementById('karyawan-status-jabatan').value
+      status_jabatan: document.getElementById('karyawan-status-jabatan').value,
+      updatedAt: serverTimestamp()
     };
 
     try {
+      const duplicate = await this.findDuplicateRecord(['karyawan'], 'nik', payload.nik, 'karyawan', id);
+      if (duplicate) {
+        this.showToast(`NIK/NIP "${payload.nik}" sudah digunakan. Gunakan nomor yang berbeda.`, 'warning');
+        return;
+      }
+
       if (id) {
         const oldItem = State.karyawan.find(k => k.id === id);
         await updateDoc(doc(db, 'karyawan', id), payload);
@@ -765,13 +823,19 @@ const App = {
         if (oldItem && oldItem.nama !== payload.nama) {
           const affectedHw = State.hardware.filter(h => (h.pemegang || '').toLowerCase() === oldItem.nama.toLowerCase());
           for (const hw of affectedHw) {
-            await updateDoc(doc(db, 'hardware', hw.id), { pemegang: payload.nama });
+            await updateDoc(doc(db, 'hardware', hw.id), {
+              pemegang: payload.nama,
+              updatedAt: serverTimestamp()
+            });
           }
           const affectedVehicles = State.kendaraan.filter(vehicle =>
             (vehicle.pemegang || '').toLowerCase() === oldItem.nama.toLowerCase()
           );
           for (const vehicle of affectedVehicles) {
-            await updateDoc(doc(db, 'kendaraan', vehicle.id), { pemegang: payload.nama });
+            await updateDoc(doc(db, 'kendaraan', vehicle.id), {
+              pemegang: payload.nama,
+              updatedAt: serverTimestamp()
+            });
           }
         }
       } else {
@@ -779,8 +843,9 @@ const App = {
         await this.logActivity('Tambah', 'karyawan', `${payload.nama} (${payload.nik})`);
       }
       this.closeModal('modal-karyawan');
+      this.showToast(id ? 'Data karyawan berhasil diperbarui.' : 'Data karyawan berhasil disimpan.');
     } catch (err) {
-      alert('Gagal menyimpan data karyawan: ' + getUserFacingError(err));
+      this.showToast('Gagal menyimpan data karyawan: ' + getUserFacingError(err), 'error');
     }
   },
 
@@ -840,13 +905,17 @@ const App = {
   async deleteKaryawan(id) {
     if (!this.requireAdmin()) return;
     const karyawan = State.karyawan.find(item => item.id === id);
-    if (!karyawan) return;
+    if (!karyawan) {
+      this.showToast('Data karyawan tidak ditemukan. Muat ulang daftar sebelum mencoba lagi.', 'warning');
+      return;
+    }
     if (confirm(`Yakin ingin menghapus data karyawan "${karyawan.nama}"?`)) {
       try {
         await deleteDoc(doc(db, 'karyawan', id));
         await this.logActivity('Hapus', 'karyawan', `${karyawan.nama} (${karyawan.nik || '-'})`);
+        this.showToast('Data karyawan berhasil dihapus.');
       } catch (err) {
-        alert('Gagal menghapus karyawan: ' + getUserFacingError(err));
+        this.showToast('Gagal menghapus karyawan: ' + getUserFacingError(err), 'error');
       }
     }
   },
@@ -984,10 +1053,23 @@ const App = {
       mac: rawMac === '' ? '-' : rawMac,
       pemegang: document.getElementById('hardware-pemegang').value,
       status: document.getElementById('hardware-status').value,
-      tahun: parseInt(document.getElementById('hardware-tahun').value, 10) || new Date().getFullYear()
+      tahun: parseInt(document.getElementById('hardware-tahun').value, 10) || new Date().getFullYear(),
+      updatedAt: serverTimestamp()
     };
 
     try {
+      const duplicate = await this.findDuplicateRecord(
+        ['hardware', 'network'],
+        'kode',
+        payload.kode,
+        id ? 'hardware' : '',
+        id
+      );
+      if (duplicate) {
+        this.showToast(`Kode aset "${payload.kode}" sudah digunakan. Gunakan kode yang berbeda.`, 'warning');
+        return;
+      }
+
       if (id) {
         await updateDoc(doc(db, 'hardware', id), payload);
       } else {
@@ -995,8 +1077,9 @@ const App = {
       }
       await this.logActivity(id ? 'Edit' : 'Tambah', 'hardware', `${payload.kode} - ${payload.jenis}`);
       this.closeModal('modal-hardware');
+      this.showToast(id ? 'Perangkat hardware berhasil diperbarui.' : 'Perangkat hardware berhasil disimpan.');
     } catch (err) {
-      alert('Gagal menyimpan perangkat hardware: ' + getUserFacingError(err));
+      this.showToast('Gagal menyimpan perangkat hardware: ' + getUserFacingError(err), 'error');
     }
   },
 
@@ -1007,12 +1090,17 @@ const App = {
 
   async deleteHardware(id, kode) {
     if (!this.requireAdmin()) return;
+    if (!State.hardware.some(item => item.id === id)) {
+      this.showToast('Perangkat hardware tidak ditemukan. Muat ulang daftar sebelum mencoba lagi.', 'warning');
+      return;
+    }
     if (confirm(`Yakin ingin menghapus perangkat hardware [${kode}]?`)) {
       try {
         await deleteDoc(doc(db, 'hardware', id));
         await this.logActivity('Hapus', 'hardware', kode);
+        this.showToast(`Perangkat hardware ${kode} berhasil dihapus.`);
       } catch (err) {
-        alert('Gagal menghapus perangkat: ' + getUserFacingError(err));
+        this.showToast('Gagal menghapus perangkat hardware: ' + getUserFacingError(err), 'error');
       }
     }
   },
@@ -1097,10 +1185,23 @@ const App = {
       ip: rawIp === '' ? '-' : rawIp,
       mac: rawMac === '' ? '-' : rawMac,
       lokasi: document.getElementById('network-lokasi').value.trim(),
-      status: document.getElementById('network-status').value
+      status: document.getElementById('network-status').value,
+      updatedAt: serverTimestamp()
     };
 
     try {
+      const duplicate = await this.findDuplicateRecord(
+        ['hardware', 'network'],
+        'kode',
+        payload.kode,
+        id ? 'network' : '',
+        id
+      );
+      if (duplicate) {
+        this.showToast(`Kode aset "${payload.kode}" sudah digunakan. Gunakan kode yang berbeda.`, 'warning');
+        return;
+      }
+
       if (id) {
         await updateDoc(doc(db, 'network', id), payload);
       } else {
@@ -1108,8 +1209,9 @@ const App = {
       }
       await this.logActivity(id ? 'Edit' : 'Tambah', 'network', `${payload.kode} - ${payload.nama}`);
       this.closeModal('modal-network');
+      this.showToast(id ? 'Perangkat jaringan berhasil diperbarui.' : 'Perangkat jaringan berhasil disimpan.');
     } catch (err) {
-      alert('Gagal menyimpan perangkat jaringan: ' + getUserFacingError(err));
+      this.showToast('Gagal menyimpan perangkat jaringan: ' + getUserFacingError(err), 'error');
     }
   },
 
@@ -1120,12 +1222,17 @@ const App = {
 
   async deleteNetwork(id, kode) {
     if (!this.requireAdmin()) return;
+    if (!State.network.some(item => item.id === id)) {
+      this.showToast('Perangkat jaringan tidak ditemukan. Muat ulang daftar sebelum mencoba lagi.', 'warning');
+      return;
+    }
     if (confirm(`Yakin ingin menghapus perangkat jaringan [${kode}]?`)) {
       try {
         await deleteDoc(doc(db, 'network', id));
         await this.logActivity('Hapus', 'network', kode);
+        this.showToast(`Perangkat jaringan ${kode} berhasil dihapus.`);
       } catch (err) {
-        alert('Gagal menghapus perangkat jaringan: ' + getUserFacingError(err));
+        this.showToast('Gagal menghapus perangkat jaringan: ' + getUserFacingError(err), 'error');
       }
     }
   },
@@ -1356,7 +1463,8 @@ const App = {
       tahun: Number(document.getElementById('kendaraan-tahun').value),
       pemegang: document.getElementById('kendaraan-pemegang').value,
       jatuh_tempo_stnk: document.getElementById('kendaraan-jatuh-tempo').value,
-      kondisi: document.getElementById('kendaraan-kondisi').value
+      kondisi: document.getElementById('kendaraan-kondisi').value,
+      updatedAt: serverTimestamp()
     };
 
     try {
@@ -1364,8 +1472,9 @@ const App = {
       else await addDoc(collection(db, 'kendaraan'), payload);
       await this.logActivity(id ? 'Edit' : 'Tambah', 'kendaraan', `${payload.no_polisi} - ${payload.merk_tipe}`);
       this.closeModal('modal-kendaraan');
+      this.showToast(id ? 'Data kendaraan berhasil diperbarui.' : 'Data kendaraan berhasil disimpan.');
     } catch (err) {
-      alert('Gagal menyimpan data kendaraan: ' + getUserFacingError(err));
+      this.showToast('Gagal menyimpan data kendaraan: ' + getUserFacingError(err), 'error');
     }
   },
 
@@ -1377,12 +1486,17 @@ const App = {
   async deleteKendaraan(id) {
     if (!this.requireAdmin()) return;
     const item = State.kendaraan.find(kendaraan => kendaraan.id === id);
-    if (!item || !confirm(`Yakin ingin menghapus kendaraan [${item.no_polisi}]?`)) return;
+    if (!item) {
+      this.showToast('Data kendaraan tidak ditemukan. Muat ulang daftar sebelum mencoba lagi.', 'warning');
+      return;
+    }
+    if (!confirm(`Yakin ingin menghapus kendaraan [${item.no_polisi}]?`)) return;
     try {
       await deleteDoc(doc(db, 'kendaraan', id));
       await this.logActivity('Hapus', 'kendaraan', `${item.no_polisi} - ${item.merk_tipe}`);
+      this.showToast('Data kendaraan berhasil dihapus.');
     } catch (err) {
-      alert('Gagal menghapus data kendaraan: ' + getUserFacingError(err));
+      this.showToast('Gagal menghapus data kendaraan: ' + getUserFacingError(err), 'error');
     }
   },
 
@@ -1474,7 +1588,8 @@ const App = {
       nik_karyawan: selectedEmployee.dataset.nik || '',
       status,
       jam_masuk: status === 'Hadir' ? document.getElementById('kehadiran-jam-masuk').value : '',
-      keterangan: document.getElementById('kehadiran-keterangan').value.trim()
+      keterangan: document.getElementById('kehadiran-keterangan').value.trim(),
+      updatedAt: serverTimestamp()
     };
 
     try {
@@ -1486,8 +1601,9 @@ const App = {
         `${payload.nama_karyawan} (${payload.tanggal})`
       );
       this.closeModal('modal-kehadiran');
+      this.showToast(id ? 'Data kehadiran berhasil diperbarui.' : 'Data kehadiran berhasil disimpan.');
     } catch (err) {
-      alert('Gagal menyimpan data kehadiran: ' + getUserFacingError(err));
+      this.showToast('Gagal menyimpan data kehadiran: ' + getUserFacingError(err), 'error');
     }
   },
 
@@ -1499,12 +1615,17 @@ const App = {
   async deleteKehadiran(id) {
     if (!this.requireAdmin()) return;
     const item = State.kehadiran.find(kehadiran => kehadiran.id === id);
-    if (!item || !confirm(`Yakin ingin menghapus catatan kehadiran ${item.nama_karyawan} tanggal ${item.tanggal}?`)) return;
+    if (!item) {
+      this.showToast('Catatan kehadiran tidak ditemukan. Muat ulang daftar sebelum mencoba lagi.', 'warning');
+      return;
+    }
+    if (!confirm(`Yakin ingin menghapus catatan kehadiran ${item.nama_karyawan} tanggal ${item.tanggal}?`)) return;
     try {
       await deleteDoc(doc(db, 'kehadiran', id));
       await this.logActivity('Hapus', 'kehadiran', `${item.nama_karyawan} (${item.tanggal})`);
+      this.showToast('Data kehadiran berhasil dihapus.');
     } catch (err) {
-      alert('Gagal menghapus data kehadiran: ' + getUserFacingError(err));
+      this.showToast('Gagal menghapus data kehadiran: ' + getUserFacingError(err), 'error');
     }
   },
 
@@ -1689,21 +1810,22 @@ const App = {
     const newPass = document.getElementById('settings-password').value.trim();
 
     try {
+      if (newPass && newPass.length < 6) {
+        this.showToast('Kata sandi baru minimal 6 karakter.', 'warning');
+        return;
+      }
+
       await updateProfile(State.user, { displayName: newName });
       if (newPass) {
-        if (newPass.length < 6) {
-          alert('Kata sandi baru minimal 6 karakter!');
-          return;
-        }
         await updatePassword(State.user, newPass);
       }
       this.updateProfileUI(State.user);
-      alert('Profil & Keamanan Akun berhasil diperbarui.');
+      this.showToast('Profil akun berhasil diperbarui.');
     } catch (err) {
       if (err.code === 'auth/requires-recent-login') {
-        alert('Demi keamanan, silakan Logout lalu Login kembali terlebih dahulu sebelum mengganti password.');
+        this.showToast('Demi keamanan, silakan keluar lalu masuk kembali sebelum mengganti kata sandi.', 'warning');
       } else {
-        alert('Gagal memperbarui profil: ' + getUserFacingError(err));
+        this.showToast('Gagal memperbarui profil: ' + getUserFacingError(err), 'error');
       }
     }
   },
@@ -1735,67 +1857,58 @@ const App = {
     if (!this.requireAdmin()) return;
     const fileInput = document.getElementById('input-restore-file');
     if (!fileInput.files || fileInput.files.length === 0) {
-      alert('Silakan pilih file cadangan berformat .json terlebih dahulu!');
+      this.showToast('Pilih file cadangan berformat JSON terlebih dahulu.', 'warning');
       return;
     }
 
     const file = fileInput.files[0];
     const reader = new FileReader();
     reader.onload = async (e) => {
+      let importedCount = 0;
       try {
         const data = JSON.parse(e.target.result);
         if (!this.requireAdmin()) return;
-        if (Array.isArray(data.karyawan)) {
-          for (const item of data.karyawan) {
-            const { id, ...rest } = item;
-            await addDoc(collection(db, 'karyawan'), rest);
+        const collectionNames = ['karyawan', 'hardware', 'network', 'kendaraan', 'kehadiran'];
+        if (!data || typeof data !== 'object' || Array.isArray(data) ||
+            !collectionNames.some(name => Array.isArray(data[name]))) {
+          throw new Error('Struktur file cadangan tidak valid.');
+        }
+
+        for (const collectionName of collectionNames) {
+          if (!Array.isArray(data[collectionName])) continue;
+          for (const item of data[collectionName]) {
+            if (!item || typeof item !== 'object' || Array.isArray(item)) {
+              throw new Error('File cadangan berisi data yang tidak valid.');
+            }
+            const record = { ...item };
+            delete record.id;
+            await addDoc(collection(db, collectionName), {
+              ...record,
+              updatedAt: serverTimestamp()
+            });
+            importedCount += 1;
           }
         }
-        if (Array.isArray(data.hardware)) {
-          for (const item of data.hardware) {
-            const { id, ...rest } = item;
-            await addDoc(collection(db, 'hardware'), rest);
-          }
-        }
-        if (Array.isArray(data.network)) {
-          for (const item of data.network) {
-            const { id, ...rest } = item;
-            await addDoc(collection(db, 'network'), rest);
-          }
-        }
-        if (Array.isArray(data.kendaraan)) {
-          for (const item of data.kendaraan) {
-            const { id, ...rest } = item;
-            await addDoc(collection(db, 'kendaraan'), rest);
-          }
-        }
-        if (Array.isArray(data.kehadiran)) {
-          for (const item of data.kehadiran) {
-            const { id, ...rest } = item;
-            await addDoc(collection(db, 'kehadiran'), rest);
-          }
+
+        if (importedCount === 0) {
+          throw new Error('File cadangan tidak berisi data untuk dipulihkan.');
         }
         fileInput.value = '';
-        alert('Data JSON berhasil dipulihkan.');
+        await this.logActivity('Impor', 'data', `${importedCount} data dipulihkan`);
+        this.showToast(`${importedCount} data berhasil diimpor.`);
       } catch (err) {
-        alert('Gagal memulihkan data: ' + getUserFacingError(err));
+        fileInput.value = '';
+        const partialImport = importedCount
+          ? ` ${importedCount} data sempat diimpor sebelum proses terhenti.`
+          : '';
+        this.showToast('Gagal mengimpor data: ' + getUserFacingError(err) + partialImport, 'error');
       }
     };
+    reader.onerror = () => {
+      fileInput.value = '';
+      this.showToast('File cadangan gagal dibaca.', 'error');
+    };
     reader.readAsText(file);
-  },
-
-  async resetDatabase() {
-    if (!this.requireAdmin()) return;
-    if (confirm('Tambahkan kembali kumpulan data contoh (dummy data) ke sistem inventaris?')) {
-      try {
-        for (const item of DEFAULT_KARYAWAN) await addDoc(collection(db, 'karyawan'), item);
-        for (const item of DEFAULT_HARDWARE) await addDoc(collection(db, 'hardware'), item);
-        for (const item of DEFAULT_NETWORK) await addDoc(collection(db, 'network'), item);
-        alert('Data contoh berhasil ditambahkan.');
-      } catch (err) {
-        alert('Gagal menambahkan data contoh: ' + getUserFacingError(err));
-      }
-    }
   },
 
   // --- MODAL UTILITY ---
@@ -1974,7 +2087,7 @@ const App = {
     const adminName = document.getElementById('audit-signature-admin').value.trim();
     const managerName = document.getElementById('audit-signature-manager').value.trim();
     if (!adminName || !managerName) {
-      alert('Nama pembuat laporan dan nama pembimbing wajib diisi.');
+      this.showToast('Nama pembuat laporan dan nama mentor wajib diisi.', 'warning');
       return;
     }
 
@@ -1982,10 +2095,10 @@ const App = {
       localStorage.setItem(AUDIT_SIGNATURE_ADMIN_KEY, adminName);
       localStorage.setItem(AUDIT_SIGNATURE_MANAGER_KEY, managerName);
       this.updateReportSignatureNames();
-      alert('Nama penanda tangan laporan audit berhasil disimpan.');
+      this.showToast('Nama penanda tangan laporan audit berhasil disimpan.');
     } catch (error) {
       console.error('Gagal menyimpan nama penanda tangan laporan:', error);
-      alert('Nama penanda tangan tidak dapat disimpan di browser ini.');
+      this.showToast('Nama penanda tangan tidak dapat disimpan di browser ini.', 'error');
     }
   },
 
@@ -2024,6 +2137,48 @@ const App = {
       month: 'long',
       year: 'numeric'
     }).format(new Date());
+  },
+
+  toTimestampDate(value) {
+    if (value == null || value === '') return null;
+    const date = value && typeof value.toDate === 'function'
+      ? value.toDate()
+      : value instanceof Date
+        ? value
+        : new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  },
+
+  renderDataUpdateStamp() {
+    const element = document.querySelector('.data-update-stamp');
+    if (!element) return;
+
+    const records = [
+      ...State.karyawan,
+      ...State.hardware,
+      ...State.network,
+      ...State.kendaraan,
+      ...State.kehadiran
+    ];
+    const dates = records
+      .map(record => this.toTimestampDate(record.updatedAt))
+      .filter(Boolean);
+    dates.push(...State.activityLogs
+      .map(log => this.toTimestampDate(log.timestamp))
+      .filter(Boolean));
+
+    if (dates.length === 0) {
+      element.textContent = 'Pembaruan data terakhir: Belum ada catatan.';
+      delete element.dataset.updatedAt;
+      return;
+    }
+
+    const latest = new Date(Math.max(...dates.map(date => date.getTime())));
+    element.textContent = `Pembaruan data terakhir: ${latest.toLocaleString('id-ID', {
+      dateStyle: 'long',
+      timeStyle: 'short'
+    })}`;
+    element.dataset.updatedAt = latest.toISOString();
   },
 
   getTodayDate() {

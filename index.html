@@ -647,7 +647,7 @@
           </div>
           <div class="signature-box">
             <p>Diketahui oleh,</p>
-            <p><strong>Pembimbing Lapangan / Manager IT</strong></p>
+            <p><strong>Pembimbing Lapangan / Mentor IT</strong></p>
             <div class="signature-space"></div>
             <p class="signature-name" id="sign-manager-name"></p>
           </div>
@@ -684,8 +684,8 @@
                 <input type="text" id="audit-signature-admin" value="Dhimas Rizky Arrasy" required>
               </div>
               <div class="form-group" style="margin-bottom: 16px;">
-                <label for="audit-signature-manager">Nama Pembimbing Lapangan / Manager IT</label>
-                <input type="text" id="audit-signature-manager" placeholder="Masukkan nama pembimbing atau manager" required>
+                <label for="audit-signature-manager">Nama Pembimbing Lapangan / Mentor IT</label>
+                <input type="text" id="audit-signature-manager" placeholder="Masukkan nama pembimbing atau mentor" required>
               </div>
               <button type="submit" class="btn btn-primary">Simpan Nama Penanda Tangan</button>
             </form>
@@ -714,6 +714,7 @@
           <div class="settings-card">
             <h3>Cadangan &amp; Pemulihan Data</h3>
             <p class="settings-desc">Unduh salinan data inventaris ke file JSON atau pulihkan data dari file cadangan.</p>
+            <p class="data-update-stamp" aria-live="polite">Pembaruan data terakhir: Belum ada catatan.</p>
             
             <div style="display: flex; flex-direction: column; gap: 14px;">
               <div>
@@ -731,12 +732,6 @@
                 </button>
               </div>
 
-              <div style="border-top: 1px solid var(--border); padding-top: 14px;" data-admin-only>
-                <button class="btn btn-danger" style="width: 100%; justify-content: center;" onclick="app.resetDatabase()">
-                   Isi Ulang Data Awal (Seed Dummy Data)
-                </button>
-                <small style="color: var(--text-muted); display: block; margin-top: 4px;">Menambahkan ulang data contoh ke sistem inventaris.</small>
-              </div>
             </div>
           </div>
         </div>
@@ -1156,6 +1151,8 @@
       </div>
     </div>
   </div>
+
+  <div class="toast-region" aria-live="polite" aria-atomic="false"></div>
 
   <!-- MODAL: INFO AKUN -->
   <div id="modal-user-info" class="modal-overlay">
