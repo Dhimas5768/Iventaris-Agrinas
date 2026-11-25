@@ -1464,12 +1464,8 @@ tbody td.muted {
   min-width: 0;
 }
 
-.hamburger-btn,
-.mobile-brand-logo {
-  display: none;
-}
-
 .hamburger-btn {
+  display: none;
   width: 40px;
   height: 40px;
   flex: 0 0 40px;
@@ -1489,6 +1485,15 @@ tbody td.muted {
   height: 2px;
   border-radius: 2px;
   background: currentColor;
+}
+
+.mobile-brand-logo {
+  display: none !important;
+  width: 32px !important;
+  height: 32px !important;
+  max-width: 32px !important;
+  max-height: 32px !important;
+  object-fit: contain !important;
 }
 
 .mobile-nav-backdrop {
@@ -1691,15 +1696,14 @@ tbody td.muted {
     width: 100%;
   }
 
-  .hamburger-btn,
-  .mobile-brand-logo {
+  .hamburger-btn {
     display: flex !important;
   }
 
   .mobile-brand-logo {
-    width: 32px;
-    height: 36px;
-    object-fit: contain;
+    display: block !important;
+    width: 32px !important;
+    height: 36px !important;
     flex: 0 0 32px;
     padding: 3px;
     border-radius: 5px;
@@ -1982,11 +1986,4 @@ tbody td.muted {
   .report-signature {
     display: flex !important;
   }
-}
-
-header img, .topbar img, .top-header img, .header-left img {
-  max-height: 36px !important;
-  width: auto !important;
-  max-width: 140px !important;
-  object-fit: contain !important;
 }
