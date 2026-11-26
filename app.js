@@ -591,6 +591,11 @@ const App = {
   // --- SPA NAVIGATION ---
   navigateTo(viewId) {
     this.currentView = viewId;
+    const targetView = document.getElementById(`view-${viewId}`);
+    if (targetView) {
+      targetView.classList.remove('page-enter');
+      void targetView.offsetWidth;
+    }
 
     document.querySelectorAll('.sidebar-nav .nav-link').forEach(link => {
       link.classList.toggle('active', link.dataset.view === viewId);
@@ -599,8 +604,12 @@ const App = {
     document.querySelectorAll('.view-section').forEach(view => {
       view.classList.remove('active');
     });
-    const targetView = document.getElementById(`view-${viewId}`);
-    if (targetView) targetView.classList.add('active');
+    if (targetView) {
+      targetView.classList.add('active', 'page-enter');
+      document.body.classList.remove('navigation-progress');
+      void document.body.offsetWidth;
+      document.body.classList.add('navigation-progress');
+    }
 
     const titles = {
       dashboard: { main: 'Dashboard Utama Aset', sub: 'RINGKASAN SISTEM & STATISTIK' },
