@@ -774,13 +774,14 @@ table {
   display: inline-flex;
   max-width: 100%;
   align-items: center;
+  justify-content: center;
   padding: 5px 8px;
   border-radius: 999px;
   font-size: 0.7rem;
   font-weight: 700;
   line-height: 1.25;
-  white-space: normal;
-  overflow-wrap: anywhere;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .employee-status-apn,
@@ -3396,6 +3397,7 @@ tbody td.muted {
   .employee-status-badge {
     padding: 4px 5px;
     font-size: 0.61rem;
+    white-space: nowrap;
   }
 
   .employee-expanded-grid {
