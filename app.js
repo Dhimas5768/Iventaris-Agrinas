@@ -56,6 +56,12 @@ const DEFAULT_USER_ROLES = {
   'hrd@agrinas.co.id': 'HRD',
   'manajer@agrinas.co.id': 'Manajer IT'
 };
+const USER_PROFILE_BY_EMAIL = {
+  'admin@agrinas.co.id': { name: 'Admin Agrinas', role: 'Admin Agrinas', initial: 'A' },
+  'manajer@agrinas.co.id': { name: 'Manajer IT', role: 'Manajer IT', initial: 'M' },
+  'pimpinan@agrinas.co.id': { name: 'Pimpinan', role: 'Pimpinan', initial: 'P' },
+  'hrd@agrinas.co.id': { name: 'HRD', role: 'HRD', initial: 'H' }
+};
 const ACCESS_DENIED_MESSAGE = 'Akses ditolak. Portal ini hanya dapat diakses oleh Admin Agrinas, Pimpinan, HRD, dan Manajer IT.';
 const DEFAULT_IT_SUPPORT_PHONE = '6282138098917';
 const AUDIT_SIGNATURE_ADMIN_KEY = 'agrinas.auditSignature.admin';
@@ -219,9 +225,10 @@ const App = {
   },
 
   updateProfileUI(user) {
-    const displayName = user.displayName || 'Admin Agrinas';
     const email = user.email || ADMIN_EMAIL;
-    const initial = displayName.charAt(0).toUpperCase();
+    const mappedProfile = USER_PROFILE_BY_EMAIL[email.trim().toLowerCase()];
+    const displayName = mappedProfile ? mappedProfile.name : (user.displayName || 'Admin Agrinas');
+    const initial = mappedProfile ? mappedProfile.initial : displayName.charAt(0).toUpperCase();
 
     document.getElementById('header-user-avatar').textContent = initial;
     document.getElementById('info-modal-avatar').textContent = initial;
@@ -242,7 +249,8 @@ const App = {
 
   updateRoleUI(user) {
     const isAdmin = this.isAdmin(user);
-    const roleLabel = this.getUserRole(user);
+    const email = user && user.email ? user.email.trim().toLowerCase() : '';
+    const roleLabel = (USER_PROFILE_BY_EMAIL[email] && USER_PROFILE_BY_EMAIL[email].role) || this.getUserRole(user);
     const headerRole = document.getElementById('header-user-role');
     const accountRole = document.getElementById('info-account-role');
 
