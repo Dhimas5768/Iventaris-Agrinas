@@ -50,6 +50,13 @@ const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
 const ADMIN_EMAIL = 'admin@agrinas.co.id';
+const DEFAULT_USER_ROLES = {
+  'admin@agrinas.co.id': 'Admin Agrinas',
+  'pimpinan@agrinas.co.id': 'Pimpinan',
+  'hrd@agrinas.co.id': 'HRD',
+  'manajer@agrinas.co.id': 'Manajer IT'
+};
+const ACCESS_DENIED_MESSAGE = 'Akses ditolak. Portal ini hanya dapat diakses oleh Admin Agrinas, Pimpinan, HRD, dan Manajer IT.';
 const DEFAULT_IT_SUPPORT_PHONE = '6282138098917';
 const AUDIT_SIGNATURE_ADMIN_KEY = 'agrinas.auditSignature.admin';
 const AUDIT_SIGNATURE_MANAGER_KEY = 'agrinas.auditSignature.manager';
@@ -94,6 +101,7 @@ const DEFAULT_NETWORK = [
 const State = {
   user: null,
   adminEmails: [ADMIN_EMAIL],
+  userRoles: { ...DEFAULT_USER_ROLES },
   itSupportPhone: DEFAULT_IT_SUPPORT_PHONE,
   karyawan: [],
   hardware: [],
@@ -141,7 +149,12 @@ const App = {
         State.user = user;
         await this.loadAdminEmails();
         if (auth.currentUser !== user) return;
+        if (!this.hasAuthorizedAccess(user)) {
+          await this.denyUnauthorizedUser();
+          return;
+        }
         loginOverlay.style.display = 'none';
+        document.getElementById('login-alert').style.display = 'none';
         this.updateProfileUI(user);
         await this.seedIfEmpty();
         this.startRealtimeListeners();
@@ -157,12 +170,12 @@ const App = {
   async login(email, password) {
     const alertBox = document.getElementById('login-alert');
     const btnSubmit = document.getElementById('btn-login-submit');
+    alertBox.style.display = 'none';
     btnSubmit.disabled = true;
     btnSubmit.textContent = 'Memverifikasi...';
 
     try {
       await signInWithEmailAndPassword(auth, email.trim(), password);
-      alertBox.style.display = 'none';
     } catch (error) {
       console.error('Login error:', error.code);
       alertBox.style.display = 'block';
@@ -179,6 +192,24 @@ const App = {
     }
   },
 
+  async denyUnauthorizedUser() {
+    const alertBox = document.getElementById('login-alert');
+    const activeUser = auth.currentUser;
+    document.getElementById('login-overlay').style.display = 'flex';
+    alertBox.textContent = ACCESS_DENIED_MESSAGE;
+    alertBox.style.display = 'block';
+    State.user = null;
+    document.body.classList.remove('role-viewer');
+    this.stopRealtimeListeners();
+    if (activeUser) {
+      try {
+        await signOut(auth);
+      } catch (error) {
+        console.error('Gagal mengeluarkan akun yang tidak berwenang:', error);
+      }
+    }
+  },
+
   async logout() {
     if (confirm('Apakah Anda yakin ingin keluar dari sistem inventaris?')) {
       await signOut(auth);
@@ -188,7 +219,7 @@ const App = {
   },
 
   updateProfileUI(user) {
-    const displayName = user.displayName || 'Admin IT';
+    const displayName = user.displayName || 'Admin Agrinas';
     const email = user.email || ADMIN_EMAIL;
     const initial = displayName.charAt(0).toUpperCase();
 
@@ -211,7 +242,7 @@ const App = {
 
   updateRoleUI(user) {
     const isAdmin = this.isAdmin(user);
-    const roleLabel = isAdmin ? 'Admin IT (Full Access)' : 'Viewer / Pimpinan (Read-Only)';
+    const roleLabel = this.getUserRole(user);
     const headerRole = document.getElementById('header-user-role');
     const accountRole = document.getElementById('info-account-role');
 
@@ -232,6 +263,17 @@ const App = {
     );
   },
 
+  getUserRole(user = State.user) {
+    if (!user || !user.email) return '';
+    const email = user.email.trim().toLowerCase();
+    if (State.adminEmails.includes(email)) return 'Admin Agrinas';
+    return State.userRoles[email] || '';
+  },
+
+  hasAuthorizedAccess(user = State.user) {
+    return Boolean(this.getUserRole(user));
+  },
+
   normalizeAdminEmails(emails) {
     if (!Array.isArray(emails)) return [ADMIN_EMAIL];
     const normalized = [...new Set(
@@ -243,15 +285,34 @@ const App = {
     return normalized.length ? normalized : [ADMIN_EMAIL];
   },
 
+  normalizeUserRoles(userRoles) {
+    if (!userRoles || typeof userRoles !== 'object' || Array.isArray(userRoles)) {
+      return { ...DEFAULT_USER_ROLES };
+    }
+
+    const allowedRoles = new Set(Object.values(DEFAULT_USER_ROLES));
+    const normalized = {};
+    Object.entries(userRoles).forEach(([email, role]) => {
+      const normalizedEmail = email.trim().toLowerCase();
+      if (normalizedEmail.includes('@') && allowedRoles.has(role)) {
+        normalized[normalizedEmail] = role;
+      }
+    });
+    return normalized;
+  },
+
   async loadAdminEmails() {
     try {
       const snapshot = await getDoc(doc(db, 'settings', 'roles'));
+      const settings = snapshot.exists() ? snapshot.data() : {};
       State.adminEmails = this.normalizeAdminEmails(
-        snapshot.exists() ? snapshot.data().adminEmails : null
+        settings.adminEmails
       );
+      State.userRoles = this.normalizeUserRoles(settings.userRoles);
     } catch (error) {
-      console.error('Gagal membaca daftar Admin IT dari Firestore:', error);
+      console.error('Gagal membaca daftar akses pengelola dari Firestore:', error);
       State.adminEmails = [ADMIN_EMAIL];
+      State.userRoles = { ...DEFAULT_USER_ROLES };
     }
   },
 
@@ -262,7 +323,7 @@ const App = {
       <li class="admin-email-item">
         <span>${this.escape(email)}</span>
         <button type="button" class="btn btn-outline btn-remove-admin" data-remove-admin="${this.escape(email)}"
-          ${State.adminEmails.length <= 1 ? 'disabled title="Minimal satu Admin IT harus tetap terdaftar"' : ''}>
+          ${State.adminEmails.length <= 1 ? 'disabled title="Minimal satu Admin Agrinas harus tetap terdaftar"' : ''}>
           Hapus
         </button>
       </li>
@@ -280,7 +341,10 @@ const App = {
     const normalized = this.normalizeAdminEmails(emails);
     await setDoc(doc(db, 'settings', 'roles'), { adminEmails: normalized }, { merge: true });
     State.adminEmails = normalized;
-    this.updateRoleUI(State.user);
+    if (State.user) {
+      if (this.hasAuthorizedAccess(State.user)) this.updateRoleUI(State.user);
+      else await this.denyUnauthorizedUser();
+    }
     this.renderAdminEmailList();
   },
 
@@ -295,20 +359,20 @@ const App = {
       return;
     }
     if (State.adminEmails.includes(email)) {
-      this.setAdminAccessStatus('Email tersebut sudah terdaftar sebagai Admin IT.', true);
-      this.showToast('Email tersebut sudah terdaftar sebagai Admin IT.', 'warning');
+      this.setAdminAccessStatus('Email tersebut sudah terdaftar sebagai Admin Agrinas.', true);
+      this.showToast('Email tersebut sudah terdaftar sebagai Admin Agrinas.', 'warning');
       return;
     }
 
     try {
       await this.saveAdminEmailList([...State.adminEmails, email]);
       input.value = '';
-      this.setAdminAccessStatus(`Akses Admin IT ditambahkan untuk ${email}.`);
-      this.showToast('Akses Admin IT berhasil ditambahkan.');
+      this.setAdminAccessStatus(`Akses Admin Agrinas ditambahkan untuk ${email}.`);
+      this.showToast('Akses Admin Agrinas berhasil ditambahkan.');
     } catch (error) {
-      console.error('Gagal menambahkan Admin IT:', error);
+      console.error('Gagal menambahkan Admin Agrinas:', error);
       this.setAdminAccessStatus('Gagal menyimpan perubahan akses Admin. Silakan coba kembali.', true);
-      this.showToast('Gagal menambahkan akses Admin IT.', 'error');
+      this.showToast('Gagal menambahkan akses Admin Agrinas.', 'error');
     }
   },
 
@@ -316,36 +380,43 @@ const App = {
     if (!this.requireAdmin()) return;
     const normalizedEmail = email.trim().toLowerCase();
     if (!State.adminEmails.includes(normalizedEmail)) {
-      this.showToast('Email Admin IT tidak ditemukan.', 'warning');
+      this.showToast('Email Admin Agrinas tidak ditemukan.', 'warning');
       return;
     }
     if (State.adminEmails.length <= 1) {
-      this.setAdminAccessStatus('Minimal satu Admin IT harus tetap terdaftar.', true);
-      this.showToast('Minimal satu Admin IT harus tetap terdaftar.', 'warning');
+      this.setAdminAccessStatus('Minimal satu Admin Agrinas harus tetap terdaftar.', true);
+      this.showToast('Minimal satu Admin Agrinas harus tetap terdaftar.', 'warning');
       return;
     }
-    if (!confirm(`Hapus ${normalizedEmail} dari daftar Admin IT?`)) return;
+    if (!confirm(`Hapus ${normalizedEmail} dari daftar Admin Agrinas?`)) return;
 
-    const currentEmail = State.user.email || '';
+    const currentUser = State.user;
+    const currentEmail = currentUser.email || '';
     const wasCurrentUserRemoved = currentEmail.trim().toLowerCase() === normalizedEmail;
     try {
       await this.saveAdminEmailList(State.adminEmails.filter(adminEmail => adminEmail !== normalizedEmail));
       if (wasCurrentUserRemoved) {
-        alert('Akses Admin IT akun ini telah dilepas. Anda tetap dapat menggunakan akses Viewer.');
+        const remainingRole = this.getUserRole(currentUser);
+        if (remainingRole) {
+          alert(`Akses penuh akun ini telah dilepas. Akun tetap dapat mengakses sistem sebagai ${remainingRole} (baca-saja).`);
+        } else if (State.user) {
+          await this.denyUnauthorizedUser();
+          return;
+        }
       } else {
-        this.setAdminAccessStatus(`Akses Admin IT untuk ${normalizedEmail} telah dihapus.`);
+        this.setAdminAccessStatus(`Akses Admin Agrinas untuk ${normalizedEmail} telah dihapus.`);
       }
-      this.showToast('Akses Admin IT berhasil dihapus.');
+      this.showToast('Akses Admin Agrinas berhasil dihapus.');
     } catch (error) {
-      console.error('Gagal menghapus Admin IT:', error);
+      console.error('Gagal menghapus Admin Agrinas:', error);
       this.setAdminAccessStatus('Gagal menyimpan perubahan akses Admin. Silakan coba kembali.', true);
-      this.showToast('Gagal menghapus akses Admin IT.', 'error');
+      this.showToast('Gagal menghapus akses Admin Agrinas.', 'error');
     }
   },
 
   requireAdmin() {
     if (this.isAdmin()) return true;
-    alert('Aksi ini hanya tersedia untuk Admin IT.');
+    alert('Aksi ini hanya tersedia untuk Admin Agrinas.');
     return false;
   },
 
@@ -423,14 +494,17 @@ const App = {
     State.networkLoaded = false;
     this.renderDashboard();
 
-    const unsubAdminRoles = onSnapshot(doc(db, 'settings', 'roles'), (snapshot) => {
-      State.adminEmails = this.normalizeAdminEmails(
-        snapshot.exists() ? snapshot.data().adminEmails : null
-      );
+    const unsubAdminRoles = onSnapshot(doc(db, 'settings', 'roles'), async (snapshot) => {
+      const settings = snapshot.exists() ? snapshot.data() : {};
+      State.adminEmails = this.normalizeAdminEmails(settings.adminEmails);
+      State.userRoles = this.normalizeUserRoles(settings.userRoles);
       this.renderAdminEmailList();
-      if (State.user) this.updateRoleUI(State.user);
+      if (State.user) {
+        if (this.hasAuthorizedAccess(State.user)) this.updateRoleUI(State.user);
+        else await this.denyUnauthorizedUser();
+      }
     }, (error) => {
-      console.error('Gagal menyinkronkan daftar Admin IT:', error);
+      console.error('Gagal menyinkronkan daftar akses pengelola:', error);
     });
 
     const unsubItSupportSettings = onSnapshot(doc(db, 'settings', 'it_support'), (snapshot) => {

@@ -19,7 +19,7 @@
         </div>
         <h2>AGRINAS PALMA NUSANTARA</h2>
         <p>Portal Manajemen Inventaris Aset IT</p>
-        <span class="login-access-badge">Akses terbatas untuk Admin IT dan pimpinan</span>
+        <span class="login-access-badge">Akses terbatas untuk Admin Agrinas, Pimpinan, HRD, dan Manajer IT</span>
       </div>
 
       <div id="login-alert" class="login-alert">Email atau Password salah!</div>
@@ -253,7 +253,7 @@
             <div class="user-profile-details">
               <div class="user-name" id="header-user-name">Admin IT</div>
             </div>
-            <span class="header-role-badge role-admin" id="header-user-role">Admin IT (Full Access)</span>
+            <span class="header-role-badge role-admin" id="header-user-role">Admin Agrinas</span>
             </div>
 
           <div class="user-dropdown" id="user-dropdown">
@@ -744,12 +744,12 @@
 
         <div class="settings-grid">
           <div class="settings-card" id="admin-access-card" data-admin-only>
-            <h3>Manajemen Akses Admin IT</h3>
-            <p class="settings-desc">Kelola email yang memiliki akses penuh. Minimal satu Admin IT harus tetap terdaftar.</p>
-            <ul id="admin-email-list" class="admin-email-list" aria-label="Daftar email Admin IT"></ul>
+            <h3>Manajemen Akses Pengelola (Admin Agrinas, Pimpinan, HRD, Manajer IT)</h3>
+            <p class="settings-desc">Peran resmi dibaca dari <code>settings/roles.userRoles</code> (email dipetakan ke nama peran). Daftar Admin Agrinas dengan akses penuh tetap dikelola di bawah; minimal satu Admin Agrinas harus tetap terdaftar.</p>
+            <ul id="admin-email-list" class="admin-email-list" aria-label="Daftar email Admin Agrinas dengan akses penuh"></ul>
             <form id="form-admin-access">
               <div class="form-group" style="margin-bottom: 12px;">
-                <label for="admin-access-email">Tambah email Admin IT</label>
+                <label for="admin-access-email">Tambah email Admin Agrinas (akses penuh)</label>
                 <input type="email" id="admin-access-email" required placeholder="nama@agrinas.co.id" autocomplete="off">
               </div>
               <button type="submit" class="btn btn-primary">Tambah Admin</button>
@@ -1376,7 +1376,7 @@
           <div class="user-avatar" id="info-modal-avatar" style="width: 54px; height: 54px; font-size: 1.25rem;">A</div>
           <div>
             <h4 id="info-account-name" style="font-size: 1.1rem; color: var(--text-dark);">Admin IT</h4>
-            <span class="badge badge-success" id="info-account-role">IT Department</span>
+            <span class="badge badge-success" id="info-account-role">Admin Agrinas</span>
           </div>
         </div>
         <div style="background: var(--surface-muted); padding: 14px; border-radius: var(--radius-sm); border: 1px solid var(--border);">
