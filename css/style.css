@@ -1718,7 +1718,7 @@ body.navigation-progress::before {
   top: calc(100% + 8px);
   left: 0;
   width: 100%;
-  min-width: 460px;
+  min-width: min(460px, calc(100vw - 24px));
   max-width: 620px;
   background: var(--bg-card);
   border-radius: var(--radius);
@@ -1740,6 +1740,10 @@ body.navigation-progress::before {
 
 .search-results-popup.show {
   display: block;
+}
+
+.text-center {
+  text-align: center;
 }
 
 .search-result-group {
