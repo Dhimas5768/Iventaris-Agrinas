@@ -168,6 +168,7 @@ const App = {
         State.user = null;
         document.body.classList.remove('role-viewer');
         this.stopRealtimeListeners();
+        this.renderAll();
         loginOverlay.style.display = 'flex';
       }
     });
@@ -207,6 +208,7 @@ const App = {
     State.user = null;
     document.body.classList.remove('role-viewer');
     this.stopRealtimeListeners();
+    this.renderAll();
     if (activeUser) {
       try {
         await signOut(auth);
@@ -585,12 +587,36 @@ const App = {
   stopRealtimeListeners() {
     State.unsubscribers.forEach(unsub => unsub());
     State.unsubscribers = [];
+    this.resetSessionData();
+  },
+
+  // Bersihkan seluruh data sesi (State, pencarian, baris yang terbuka)
+  resetSessionData() {
+    State.karyawan = [];
+    State.hardware = [];
+    State.network = [];
+    State.kendaraan = [];
+    State.kehadiran = [];
     State.activityLogs = [];
+    State.hardwareLoaded = false;
+    State.networkLoaded = false;
+    this.clearGlobalSearch();
+    this.expandedHardwareIds.clear();
+    this.expandedKaryawanIds.clear();
+  },
+
+  clearGlobalSearch() {
+    this.globalKeyword = '';
+    const searchInput = document.getElementById('global-search-input');
+    if (searchInput) searchInput.value = '';
+    const searchPopup = document.getElementById('search-results-popup');
+    if (searchPopup) searchPopup.classList.remove('show');
   },
 
   // --- SPA NAVIGATION ---
-  navigateTo(viewId) {
+  navigateTo(viewId, options = {}) {
     this.currentView = viewId;
+    if (!options.keepSearch) this.clearGlobalSearch();
     const targetView = document.getElementById(`view-${viewId}`);
     if (targetView) {
       targetView.classList.remove('page-enter');
@@ -1487,9 +1513,9 @@ const App = {
         <td>${this.getStatusBadge(item.status)}</td>
         <td style="text-align: center;">
           <div class="action-buttons" style="justify-content: center;">
-            <button type="button" class="btn-icon edit" title="Edit Perangkat" aria-label="Edit ${this.escape(item.kode)}" onclick="app.editNetwork('${item.id}')">${this.actionIcon('edit')}</button>
-            <button type="button" class="btn-icon delete" title="Hapus Perangkat" aria-label="Hapus ${this.escape(item.kode)}" onclick="app.deleteNetwork('${item.id}', '${this.escape(item.kode)}')">${this.actionIcon('delete')}</button>
-            <button type="button" class="btn-icon qr" title="Lihat / Cetak QR" aria-label="Lihat atau cetak QR ${this.escape(item.kode)}" onclick="app.openAssetQr('network', '${item.id}')">${this.actionIcon('qr')}</button>
+            <button type="button" class="btn-icon edit" title="Edit Perangkat" aria-label="Edit ${this.escape(item.kode)}" data-network-action="edit" data-id="${this.escape(item.id)}">${this.actionIcon('edit')}</button>
+            <button type="button" class="btn-icon delete" title="Hapus Perangkat" aria-label="Hapus ${this.escape(item.kode)}" data-network-action="delete" data-id="${this.escape(item.id)}">${this.actionIcon('delete')}</button>
+            <button type="button" class="btn-icon qr" title="Lihat / Cetak QR" aria-label="Lihat atau cetak QR ${this.escape(item.kode)}" data-network-action="qr" data-id="${this.escape(item.id)}">${this.actionIcon('qr')}</button>
           </div>
         </td>
       </tr>
@@ -1623,13 +1649,8 @@ const App = {
       pic: (params.get('pic') || '').trim().slice(0, 120),
       status: (params.get('status') || '').trim().slice(0, 80)
     };
-    const qrSupportPhone = params.get('wa');
-    if (qrSupportPhone) {
-      const normalizedPhone = this.normalizeItSupportPhone(qrSupportPhone);
-      if (normalizedPhone === DEFAULT_IT_SUPPORT_PHONE || /^62\d{8,13}$/.test(normalizedPhone)) {
-        State.itSupportPhone = normalizedPhone;
-      }
-    }
+    // Nomor WA tujuan dikunci ke nomor resmi IT Support; parameter ?wa= sengaja diabaikan.
+    State.itSupportPhone = DEFAULT_IT_SUPPORT_PHONE;
     this.publicQrData = publicData;
 
     document.getElementById('public-qr-code').textContent = publicData.kode || '-';
@@ -1707,14 +1728,13 @@ const App = {
       status: item.status || '-'
     };
     const holderLabel = type === 'hardware' ? 'Pemegang' : 'Pemegang / Lokasi';
-    const qrUrl = new URL('https://iventarisagrinas.my.id/');
+    const qrUrl = new URL(window.location.pathname, window.location.origin);
     qrUrl.searchParams.set('qr', '1');
     qrUrl.searchParams.set('kode', labelData.kode);
     qrUrl.searchParams.set('jenis', labelData.jenis);
     qrUrl.searchParams.set('merk', labelData.model);
     qrUrl.searchParams.set('pic', labelData.pemegang);
     qrUrl.searchParams.set('status', labelData.status);
-    qrUrl.searchParams.set('wa', this.normalizeItSupportPhone(State.itSupportPhone));
 
     document.getElementById('qr-asset-code').textContent = labelData.kode;
     document.getElementById('qr-asset-name').textContent = labelData.nama;
@@ -1797,8 +1817,8 @@ const App = {
         <td>${this.getVehicleConditionBadge(item.kondisi)}</td>
         <td style="text-align: center;">
           <div class="action-buttons" style="justify-content: center;">
-            <button type="button" class="btn-icon edit" title="Edit Kendaraan" aria-label="Edit ${this.escape(item.no_polisi)}" onclick="app.editKendaraan('${item.id}')">${this.actionIcon('edit')}</button>
-            <button type="button" class="btn-icon delete" title="Hapus Kendaraan" aria-label="Hapus ${this.escape(item.no_polisi)}" onclick="app.deleteKendaraan('${item.id}')">${this.actionIcon('delete')}</button>
+            <button type="button" class="btn-icon edit" title="Edit Kendaraan" aria-label="Edit ${this.escape(item.no_polisi)}" data-kendaraan-action="edit" data-id="${this.escape(item.id)}">${this.actionIcon('edit')}</button>
+            <button type="button" class="btn-icon delete" title="Hapus Kendaraan" aria-label="Hapus ${this.escape(item.no_polisi)}" data-kendaraan-action="delete" data-id="${this.escape(item.id)}">${this.actionIcon('delete')}</button>
           </div>
         </td>
       </tr>
@@ -1917,8 +1937,8 @@ const App = {
         <td>${this.escape(item.keterangan || '-')}</td>
         <td style="text-align: center;">
           <div class="action-buttons" style="justify-content: center;">
-            <button type="button" class="btn-icon edit" title="Edit Kehadiran" aria-label="Edit catatan ${this.escape(item.nama_karyawan)}" onclick="app.editKehadiran('${item.id}')">${this.actionIcon('edit')}</button>
-            <button type="button" class="btn-icon delete" title="Hapus Kehadiran" aria-label="Hapus catatan ${this.escape(item.nama_karyawan)}" onclick="app.deleteKehadiran('${item.id}')">${this.actionIcon('delete')}</button>
+            <button type="button" class="btn-icon edit" title="Edit Kehadiran" aria-label="Edit catatan ${this.escape(item.nama_karyawan)}" data-kehadiran-action="edit" data-id="${this.escape(item.id)}">${this.actionIcon('edit')}</button>
+            <button type="button" class="btn-icon delete" title="Hapus Kehadiran" aria-label="Hapus catatan ${this.escape(item.nama_karyawan)}" data-kehadiran-action="delete" data-id="${this.escape(item.id)}">${this.actionIcon('delete')}</button>
           </div>
         </td>
       </tr>
@@ -2102,7 +2122,10 @@ const App = {
   },
 
   csvCell(value) {
-    return `"${String(value == null ? '' : value).replace(/"/g, '""')}"`;
+    let text = String(value == null ? '' : value);
+    // Cegah formula injection di Excel/Sheets; "-" tunggal (placeholder) dibiarkan.
+    if (text !== '-' && /^[=+\-@\t\r]/.test(text)) text = `'${text}`;
+    return `"${text.replace(/"/g, '""')}"`;
   },
 
   exportKaryawanCSV() {
@@ -2134,7 +2157,8 @@ const App = {
   exportNetworkCSV() {
     let csv = 'Kode Aset,Nama Perangkat,Kategori,IP Address,MAC Address,Lokasi Penempatan,Status\n';
     State.network.forEach(n => {
-      csv += `"${n.kode}","${n.nama}","${n.kategori}","${n.ip || '-'}","${n.mac || '-'}","${n.lokasi}","${n.status}"\n`;
+      csv += [n.kode, n.nama, n.kategori, n.ip || '-', n.mac || '-', n.lokasi, n.status]
+        .map(value => this.csvCell(value)).join(',') + '\n';
     });
     this.downloadCSV('Network_Server_Agrinas.csv', csv);
   },
@@ -2246,9 +2270,13 @@ const App = {
     }
 
     const file = fileInput.files[0];
+    if (!confirm(`Impor data dari file "${file.name}"?\n\nData dengan NIK / kode aset / nomor polisi yang sudah ada akan dilewati (tidak ditimpa). Lanjutkan?`)) {
+      return;
+    }
     const reader = new FileReader();
     reader.onload = async (e) => {
       let importedCount = 0;
+      let skippedCount = 0;
       try {
         const data = JSON.parse(e.target.result);
         if (!this.requireAdmin()) return;
@@ -2258,12 +2286,34 @@ const App = {
           throw new Error('Struktur file cadangan tidak valid.');
         }
 
+        const norm = value => String(value == null ? '' : value).trim().toLowerCase();
+        const assetCodes = new Set([...State.hardware, ...State.network].map(i => norm(i.kode)).filter(Boolean));
+        const seenKeys = {
+          karyawan: new Set(State.karyawan.map(i => norm(i.nik)).filter(Boolean)),
+          hardware: assetCodes,
+          network: assetCodes,
+          kendaraan: new Set(State.kendaraan.map(i => norm(i.no_polisi)).filter(Boolean)),
+          kehadiran: new Set(State.kehadiran.map(i => `${norm(i.tanggal)}|${norm(i.nik_karyawan)}`))
+        };
+        const keyOf = (name, item) => {
+          if (name === 'karyawan') return norm(item.nik);
+          if (name === 'hardware' || name === 'network') return norm(item.kode);
+          if (name === 'kendaraan') return norm(item.no_polisi);
+          return `${norm(item.tanggal)}|${norm(item.nik_karyawan)}`;
+        };
+
         for (const collectionName of collectionNames) {
           if (!Array.isArray(data[collectionName])) continue;
           for (const item of data[collectionName]) {
             if (!item || typeof item !== 'object' || Array.isArray(item)) {
               throw new Error('File cadangan berisi data yang tidak valid.');
             }
+            const key = keyOf(collectionName, item);
+            if (key && key !== '|' && seenKeys[collectionName].has(key)) {
+              skippedCount += 1;
+              continue;
+            }
+            if (key && key !== '|') seenKeys[collectionName].add(key);
             const record = { ...item };
             delete record.id;
             await addDoc(collection(db, collectionName), {
@@ -2274,12 +2324,16 @@ const App = {
           }
         }
 
+        fileInput.value = '';
         if (importedCount === 0) {
+          if (skippedCount > 0) {
+            this.showToast(`Tidak ada data baru. ${skippedCount} data dilewati karena sudah ada.`, 'warning');
+            return;
+          }
           throw new Error('File cadangan tidak berisi data untuk dipulihkan.');
         }
-        fileInput.value = '';
         await this.logActivity('Impor', 'data', `${importedCount} data dipulihkan`);
-        this.showToast(`${importedCount} data berhasil diimpor.`);
+        this.showToast(`${importedCount} data berhasil diimpor${skippedCount ? `, ${skippedCount} data duplikat dilewati` : ''}.`);
       } catch (err) {
         fileInput.value = '';
         const partialImport = importedCount
@@ -2448,7 +2502,7 @@ const App = {
       this.attendanceDateFilter = '';
       document.getElementById('filter-kehadiran-tanggal').value = '';
     }
-    this.navigateTo(viewId);
+    this.navigateTo(viewId, { keepSearch: true });
   },
 
   // --- HELPERS ---
@@ -2830,14 +2884,14 @@ const App = {
       if (!val) return;
       this.globalKeyword = val;
       const results = this.searchAcrossDatabase(val);
-      if (results.hardware.length > 0) this.navigateTo('hardware');
-      else if (results.karyawan.length > 0) this.navigateTo('karyawan');
-      else if (results.network.length > 0) this.navigateTo('network');
-      else if (results.kendaraan.length > 0) this.navigateTo('kendaraan');
+      if (results.hardware.length > 0) this.navigateTo('hardware', { keepSearch: true });
+      else if (results.karyawan.length > 0) this.navigateTo('karyawan', { keepSearch: true });
+      else if (results.network.length > 0) this.navigateTo('network', { keepSearch: true });
+      else if (results.kendaraan.length > 0) this.navigateTo('kendaraan', { keepSearch: true });
       else if (results.kehadiran.length > 0) {
         this.attendanceDateFilter = '';
         dateFilter.value = '';
-        this.navigateTo('kehadiran');
+        this.navigateTo('kehadiran', { keepSearch: true });
       }
       else this.renderCurrentView();
       searchPopup.classList.remove('show');
@@ -2915,6 +2969,37 @@ const App = {
         if (item) this.deleteHardware(id, item.kode);
       }
       if (action === 'qr') this.openAssetQr('hardware', id);
+    });
+
+    document.getElementById('table-network-body').addEventListener('click', (e) => {
+      const button = e.target.closest('[data-network-action]');
+      if (!button) return;
+      const { id } = button.dataset;
+      const action = button.dataset.networkAction;
+      if (action === 'edit') this.editNetwork(id);
+      if (action === 'delete') {
+        const item = State.network.find(network => network.id === id);
+        if (item) this.deleteNetwork(id, item.kode);
+      }
+      if (action === 'qr') this.openAssetQr('network', id);
+    });
+
+    document.getElementById('table-kendaraan-body').addEventListener('click', (e) => {
+      const button = e.target.closest('[data-kendaraan-action]');
+      if (!button) return;
+      const { id } = button.dataset;
+      const action = button.dataset.kendaraanAction;
+      if (action === 'edit') this.editKendaraan(id);
+      if (action === 'delete') this.deleteKendaraan(id);
+    });
+
+    document.getElementById('table-kehadiran-body').addEventListener('click', (e) => {
+      const button = e.target.closest('[data-kehadiran-action]');
+      if (!button) return;
+      const { id } = button.dataset;
+      const action = button.dataset.kehadiranAction;
+      if (action === 'edit') this.editKehadiran(id);
+      if (action === 'delete') this.deleteKehadiran(id);
     });
 
     document.getElementById('table-inventaris-body').addEventListener('click', (e) => {
