@@ -2177,9 +2177,9 @@ tbody td.muted {
 
 .login-brand .brand-logo-card {
   margin: 0 auto 14px;
-  box-shadow: 0 3px 10px var(--overlay-ink-12);
-  border: 1px solid var(--border-logo);
-  background: var(--bg-card);
+  box-shadow: none;
+  border: 0;
+  background: transparent;
 }
 
 .login-brand h2 {
@@ -2200,10 +2200,11 @@ tbody td.muted {
   display: inline-block;
   max-width: 100%;
   margin-top: 10px;
-  padding: 5px 9px;
-  border: 1px solid var(--border-soft);
-  border-radius: 999px;
-  background: var(--surface-soft);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   color: var(--primary);
   font-size: 0.72rem;
   font-weight: 700;
