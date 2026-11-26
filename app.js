@@ -50,6 +50,7 @@ const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
 const ADMIN_EMAIL = 'admin@agrinas.co.id';
+const DEFAULT_IT_SUPPORT_PHONE = '6282138098917';
 const AUDIT_SIGNATURE_ADMIN_KEY = 'agrinas.auditSignature.admin';
 const AUDIT_SIGNATURE_MANAGER_KEY = 'agrinas.auditSignature.manager';
 
@@ -93,6 +94,7 @@ const DEFAULT_NETWORK = [
 const State = {
   user: null,
   adminEmails: [ADMIN_EMAIL],
+  itSupportPhone: DEFAULT_IT_SUPPORT_PHONE,
   karyawan: [],
   hardware: [],
   network: [],
@@ -110,10 +112,15 @@ const App = {
   networkFilter: 'all',
   hardwareStatusFilter: 'all',
   networkStatusFilter: 'all',
+  inventoryCategoryFilter: 'all',
+  inventorySearchQuery: '',
+  expandedHardwareIds: new Set(),
   attendanceDateFilter: '',
   globalKeyword: '',
+  expandedKaryawanIds: new Set(),
   dateRefreshTimer: null,
   assetDeepLinkHandled: false,
+  publicQrData: null,
 
   init() {
     this.updateHeaderDate();
@@ -426,6 +433,15 @@ const App = {
       console.error('Gagal menyinkronkan daftar Admin IT:', error);
     });
 
+    const unsubItSupportSettings = onSnapshot(doc(db, 'settings', 'it_support'), (snapshot) => {
+      this.applyItSupportPhone(
+        snapshot.exists() ? snapshot.data().whatsappNumber : DEFAULT_IT_SUPPORT_PHONE
+      );
+    }, (error) => {
+      console.error('Gagal menyinkronkan nomor WhatsApp IT Support:', error);
+      this.setItSupportSettingsStatus('Nomor WhatsApp tidak dapat disinkronkan. Periksa koneksi atau izin Firestore.', true);
+    });
+
     const unsubKaryawan = onSnapshot(collection(db, 'karyawan'), (snapshot) => {
       State.karyawan = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       this.renderAll();
@@ -474,6 +490,7 @@ const App = {
 
     State.unsubscribers = [
       unsubAdminRoles,
+      unsubItSupportSettings,
       unsubKaryawan,
       unsubHardware,
       unsubNetwork,
@@ -505,8 +522,9 @@ const App = {
 
     const titles = {
       dashboard: { main: 'Dashboard Utama Aset', sub: 'RINGKASAN SISTEM & STATISTIK' },
-      karyawan: { main: 'Data Karyawan', sub: 'DAFTAR PEGAWAI & PEMEGANG ASET' },
-      hardware: { main: 'End-User Hardware', sub: 'INVENTARIS KOMPUTER, LAPTOP & PRINTER' },
+      karyawan: { main: 'Master Karyawan', sub: 'DAFTAR PEGAWAI & PEMEGANG ASET' },
+      hardware: { main: 'Master Barang', sub: 'DAFTAR BARANG & SPESIFIKASI TEKNIS' },
+      inventaris: { main: 'Data Inventaris', sub: 'REKAP BARANG & PEMEGANG INVENTARIS' },
       network: { main: 'Network & Server', sub: 'INFRASTRUKTUR JARINGAN & SERVER' },
       kendaraan: { main: 'Kendaraan Operasional', sub: 'INVENTARIS DAN STATUS KENDARAAN' },
       kehadiran: { main: 'Data Kehadiran', sub: 'CATATAN KEHADIRAN KARYAWAN' },
@@ -527,6 +545,7 @@ const App = {
       case 'dashboard': this.renderDashboard(); break;
       case 'karyawan': this.renderKaryawanTable(); break;
       case 'hardware': this.renderHardwareTable(); break;
+      case 'inventaris': this.renderDataInventarisTable(); break;
       case 'network': this.renderNetworkTable(); break;
       case 'kendaraan': this.renderKendaraanTable(); break;
       case 'kehadiran': this.renderKehadiranTable(); break;
@@ -538,6 +557,7 @@ const App = {
     this.renderDashboard();
     this.renderKaryawanTable();
     this.renderHardwareTable();
+    this.renderDataInventarisTable();
     this.renderNetworkTable();
     this.renderKendaraanTable();
     this.renderKehadiranTable();
@@ -699,6 +719,24 @@ const App = {
     return '<span class="badge-inventory-status inventory-unknown">Belum dilengkapi</span>';
   },
 
+  getKaryawanStatus(status) {
+    return status || 'Belum diatur';
+  },
+
+  getKaryawanStatusBadge(status) {
+    const value = this.getKaryawanStatus(status);
+    const statusClass = value === 'APN (HO)'
+      ? 'employee-status-apn'
+      : value === 'Ex-DPN (Agrinas)'
+        ? 'employee-status-ex-dpn'
+        : value === 'Karyawan Tetap'
+          ? 'employee-status-permanent'
+          : value === 'Karyawan Kontrak (PKWT)'
+            ? 'employee-status-contract'
+            : 'employee-status-unknown';
+    return `<span class="employee-status-badge ${statusClass}">${this.escape(value)}</span>`;
+  },
+
   renderKaryawanTenure(karyawan) {
     const startDate = karyawan.tanggal_mulai ? this.formatDate(karyawan.tanggal_mulai) : '-';
     const summary = this.getTenureSummary(karyawan);
@@ -720,6 +758,33 @@ const App = {
     return this.getTenureSummary(karyawan);
   },
 
+  renderKaryawanExpandedDetails(karyawan) {
+    return `
+      <div class="employee-expanded-grid">
+        <div class="employee-expanded-item">
+          <span>NIK / NIP</span>
+          <strong>${this.escape(karyawan.nik || '-')}</strong>
+        </div>
+        <div class="employee-expanded-item">
+          <span>Jabatan</span>
+          <strong>${this.escape(karyawan.jabatan || '-')}</strong>
+        </div>
+        <div class="employee-expanded-item employee-expanded-item--tenure">
+          <span>Masa Jabatan / Estimasi Pensiun</span>
+          <div>${this.renderKaryawanTenure(karyawan)}</div>
+        </div>
+        <div class="employee-expanded-item">
+          <span>Status Inventaris IT</span>
+          <div>${this.getKaryawanInventoryBadge(karyawan.statusInventaris)}</div>
+        </div>
+        <div class="employee-expanded-item employee-expanded-item--wide">
+          <span>Penjelasan Inventaris IT</span>
+          <p>${this.escape(karyawan.keteranganInventaris || '-')}</p>
+        </div>
+      </div>
+    `;
+  },
+
   renderKaryawanTable() {
     const tbody = document.getElementById('table-karyawan-body');
     const keyword = this.globalKeyword.toLowerCase().trim();
@@ -727,7 +792,7 @@ const App = {
     const filtered = State.karyawan.filter(k =>
       [
         k.nama, k.nik, k.jabatan, k.departemen, k.divisi, k.lokasi,
-        k.statusInventaris, k.keteranganInventaris,
+        k.status_karyawan, k.statusInventaris, k.keteranganInventaris,
         k.tanggal_mulai, k.akhir_jabatan, k.status_jabatan
       ].some(value => String(value || '').toLowerCase().includes(keyword))
     );
@@ -735,30 +800,49 @@ const App = {
     document.getElementById('showing-karyawan').textContent = `Menampilkan ${filtered.length} dari ${State.karyawan.length} karyawan`;
 
     if (filtered.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="10" class="text-center" style="padding: 24px; color: var(--text-muted);">Tidak ada data karyawan yang cocok.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center employee-table-empty">Tidak ada data karyawan yang cocok.</td></tr>';
       return;
     }
 
-    tbody.innerHTML = filtered.map((k, index) => `
-        <tr>
-          <td class="row-num">${index + 1}</td>
-          <td><span class="asset-tag">${this.escape(k.nik || '-')}</span></td>
-          <td><strong>${this.escape(k.nama)}</strong></td>
-          <td>${this.escape(k.jabatan)}</td>
-          <td>${this.escape(this.getKaryawanDepartemen(k))}</td>
-          <td class="employee-tenure-cell">${this.renderKaryawanTenure(k)}</td>
+    tbody.innerHTML = filtered.map((k, index) => {
+      const id = this.escape(k.id);
+      const expanded = this.expandedKaryawanIds.has(k.id);
+      const detailsId = `employee-details-${id}`;
+      return `
+        <tr class="employee-summary-row${expanded ? ' is-expanded' : ''}">
+          <td class="employee-expand-cell">
+            <button type="button" class="employee-expand-button" data-karyawan-action="toggle"
+              data-id="${id}" aria-expanded="${expanded}" aria-controls="${detailsId}"
+              title="${expanded ? 'Tutup' : 'Buka'} detail ${this.escape(k.nama)}"
+              aria-label="${expanded ? 'Tutup' : 'Buka'} detail ${this.escape(k.nama)}">
+              ${this.actionIcon('chevron')}
+            </button>
+          </td>
+          <td class="employee-number-cell">${index + 1}</td>
+          <td class="employee-name-cell"><strong>${this.escape(k.nama || '-')}</strong></td>
           <td>${this.escape(k.lokasi || '-')}</td>
-          <td>${this.getKaryawanInventoryBadge(k.statusInventaris)}</td>
-          <td class="employee-inventory-notes">${this.escape(k.keteranganInventaris || '-')}</td>
-          <td style="text-align: center;">
-            <div class="action-buttons" style="justify-content: center;">
-              <button type="button" class="btn-icon view" title="Detail Karyawan" data-karyawan-action="detail" data-id="${this.escape(k.id)}">🔎</button>
-              <button type="button" class="btn-icon edit" title="Edit Karyawan" data-karyawan-action="edit" data-id="${this.escape(k.id)}">✏️</button>
-              <button type="button" class="btn-icon delete" title="Hapus Karyawan" data-karyawan-action="delete" data-id="${this.escape(k.id)}">🗑️</button>
+          <td>${this.escape(this.getKaryawanDepartemen(k))}</td>
+          <td>${this.getKaryawanStatusBadge(k.status_karyawan)}</td>
+          <td class="employee-actions-cell">
+            <div class="employee-actions">
+              <button type="button" class="btn-icon edit" title="Edit Karyawan" aria-label="Edit ${this.escape(k.nama)}" data-karyawan-action="edit" data-id="${id}">
+                ${this.actionIcon('edit')}
+              </button>
+              <button type="button" class="btn-icon delete" title="Hapus Karyawan" aria-label="Hapus ${this.escape(k.nama)}" data-karyawan-action="delete" data-id="${id}">
+                ${this.actionIcon('delete')}
+              </button>
             </div>
           </td>
         </tr>
-      `).join('');
+        <tr class="employee-detail-row${expanded ? ' is-expanded' : ''}">
+          <td colspan="7">
+            <div class="employee-detail-clip" id="${detailsId}" aria-hidden="${!expanded}">
+              <div class="employee-detail-inner">${this.renderKaryawanExpandedDetails(k)}</div>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
   },
 
   openKaryawanModal(karyawan = null) {
@@ -768,21 +852,24 @@ const App = {
     form.reset();
 
     if (karyawan) {
-      title.innerHTML = '<span>✏️</span> Edit Data Karyawan';
+      title.textContent = 'Edit Master Karyawan';
       document.getElementById('karyawan-id').value = karyawan.id;
       document.getElementById('karyawan-nik').value = karyawan.nik;
       document.getElementById('karyawan-nama').value = karyawan.nama;
       document.getElementById('karyawan-departemen').value = karyawan.departemen || karyawan.divisi || '';
       document.getElementById('karyawan-jabatan').value = karyawan.jabatan;
       document.getElementById('karyawan-lokasi').value = karyawan.lokasi || '';
+      document.getElementById('karyawan-status-karyawan').value =
+        karyawan.status_karyawan || (karyawan.status_jabatan === 'Kontrak (PKWT)' ? 'Karyawan Kontrak (PKWT)' : '');
       document.getElementById('karyawan-status-inventaris').value = karyawan.statusInventaris || '';
       document.getElementById('karyawan-keterangan-inventaris').value = karyawan.keteranganInventaris || '';
       document.getElementById('karyawan-tanggal-mulai').value = karyawan.tanggal_mulai || '';
       document.getElementById('karyawan-akhir-jabatan').value = karyawan.akhir_jabatan || '';
       document.getElementById('karyawan-status-jabatan').value = karyawan.status_jabatan || 'Karyawan Tetap';
     } else {
-      title.innerHTML = '<span>👥</span> Tambah Data Karyawan';
+      title.textContent = 'Tambah Master Karyawan';
       document.getElementById('karyawan-id').value = '';
+      document.getElementById('karyawan-status-karyawan').value = '';
       document.getElementById('karyawan-status-jabatan').value = 'Karyawan Tetap';
     }
     this.updateKaryawanInventorySuggestion();
@@ -800,6 +887,7 @@ const App = {
       divisi: document.getElementById('karyawan-departemen').value.trim(),
       jabatan: document.getElementById('karyawan-jabatan').value.trim(),
       lokasi: document.getElementById('karyawan-lokasi').value.trim(),
+      status_karyawan: document.getElementById('karyawan-status-karyawan').value,
       statusInventaris: document.getElementById('karyawan-status-inventaris').value,
       keteranganInventaris: document.getElementById('karyawan-keterangan-inventaris').value.trim(),
       tanggal_mulai: document.getElementById('karyawan-tanggal-mulai').value,
@@ -852,6 +940,15 @@ const App = {
   editKaryawan(id) {
     const item = State.karyawan.find(k => k.id === id);
     if (item) this.openKaryawanModal(item);
+  },
+
+  toggleKaryawanRow(id) {
+    if (this.expandedKaryawanIds.has(id)) {
+      this.expandedKaryawanIds.delete(id);
+    } else {
+      this.expandedKaryawanIds.add(id);
+    }
+    this.renderKaryawanTable();
   },
 
   showKaryawanDetail(id) {
@@ -970,46 +1067,120 @@ const App = {
     return true;
   },
 
+  getHardwareCategory(item) {
+    const category = String(item.jenis || '').trim().toLowerCase();
+    return category === 'pc desktop' ? 'PC' : (item.jenis || '');
+  },
+
+  findHardwareEmployee(item) {
+    const holder = String(item.pemegang || '').trim().toLowerCase();
+    if (!holder) return null;
+    return State.karyawan.find(employee =>
+      String(employee.nama || '').trim().toLowerCase() === holder
+    ) || null;
+  },
+
+  renderHardwareExpandedDetails(item) {
+    return `
+      <div class="barang-expanded-grid">
+        <div class="barang-expanded-item">
+          <span>Prosesor</span>
+          <strong>${this.escape(item.prosesor || '-')}</strong>
+        </div>
+        <div class="barang-expanded-item">
+          <span>RAM</span>
+          <strong>${this.escape(item.ram || '-')}</strong>
+        </div>
+        <div class="barang-expanded-item">
+          <span>Penyimpanan (HDD / SSD)</span>
+          <strong>${this.escape(item.penyimpanan || '-')}</strong>
+        </div>
+        <div class="barang-expanded-item">
+          <span>Serial Number</span>
+          <strong>${this.escape(item.sn || '-')}</strong>
+        </div>
+        <div class="barang-expanded-item">
+          <span>Pemegang</span>
+          <strong>${this.escape(item.pemegang || '-')}</strong>
+        </div>
+        <div class="barang-expanded-item">
+          <span>MAC Address</span>
+          <strong>${this.escape(item.mac || '-')}</strong>
+        </div>
+        <div class="barang-expanded-item barang-expanded-item--wide">
+          <span>Keterangan Teknis</span>
+          <p>${this.escape(item.keterangan_teknis || '-')}</p>
+        </div>
+      </div>
+    `;
+  },
+
   renderHardwareTable() {
     const tbody = document.getElementById('table-hardware-body');
     const keyword = this.globalKeyword.toLowerCase().trim();
 
     const filtered = State.hardware.filter(item => {
-      const matchFilter = this.hardwareFilter === 'all' || (item.jenis || '').toLowerCase() === this.hardwareFilter.toLowerCase();
+      const matchFilter = this.hardwareFilter === 'all' ||
+        this.getHardwareCategory(item).toLowerCase() === this.hardwareFilter.toLowerCase() ||
+        (this.hardwareFilter === 'PC Desktop' && this.getHardwareCategory(item) === 'PC');
       const matchStatus = this.matchesAssetStatus(item.status, this.hardwareStatusFilter);
-      const matchSearch = (item.kode || '').toLowerCase().includes(keyword) ||
-                          (item.merek || '').toLowerCase().includes(keyword) ||
-                          (item.sn || '').toLowerCase().includes(keyword) ||
-                          (item.mac || '').toLowerCase().includes(keyword) ||
-                          (item.pemegang || '').toLowerCase().includes(keyword);
+      const matchSearch = [
+        item.kode, item.jenis, item.merek, item.sn, item.mac, item.pemegang,
+        item.prosesor, item.ram, item.penyimpanan, item.keterangan_teknis
+      ].some(value => String(value || '').toLowerCase().includes(keyword));
       return matchFilter && matchStatus && matchSearch;
     });
 
-    document.getElementById('showing-hardware').textContent = `Menampilkan ${filtered.length} dari ${State.hardware.length} perangkat`;
+    document.getElementById('showing-hardware').textContent = `Menampilkan ${filtered.length} dari ${State.hardware.length} barang`;
 
     if (filtered.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="8" class="text-center" style="padding: 24px; color: var(--text-muted);">Tidak ada perangkat hardware yang cocok.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center" style="padding: 24px; color: var(--text-muted);">Tidak ada barang yang cocok.</td></tr>';
       return;
     }
 
-    tbody.innerHTML = filtered.map(item => `
-      <tr>
-        <td><span class="asset-tag">${this.escape(item.kode)}</span></td>
-        <td><strong>${this.escape(item.jenis)}</strong></td>
-        <td>${this.escape(item.merek)}</td>
-        <td><span class="serial-num">${this.escape(item.sn)}</span></td>
-        <td><span class="mac-address">${this.escape(item.mac || '-')}</span></td>
-        <td><strong>${this.escape(item.pemegang)}</strong></td>
-        <td>${this.getStatusBadge(item.status)}</td>
-        <td style="text-align: center;">
-          <div class="action-buttons" style="justify-content: center;">
-            <button class="btn-icon edit" title="Edit Perangkat" onclick="app.editHardware('${item.id}')">✏️</button>
-            <button class="btn-icon delete" title="Hapus Perangkat" onclick="app.deleteHardware('${item.id}', '${this.escape(item.kode)}')">🗑️</button>
-            <button class="btn-icon qr" title="Cetak Label QR" onclick="app.openAssetQr('hardware', '${item.id}')">QR</button>
-          </div>
-        </td>
-      </tr>
-    `).join('');
+    tbody.innerHTML = filtered.map(item => {
+      const id = this.escape(item.id);
+      const expanded = this.expandedHardwareIds.has(item.id);
+      const detailsId = `barang-details-${id}`;
+      const year = item.tahun || item.tahun_perolehan || '-';
+      return `
+        <tr class="barang-summary-row${expanded ? ' is-expanded' : ''}">
+          <td class="barang-expand-cell">
+            <button type="button" class="barang-expand-button" data-hardware-action="toggle"
+              data-id="${id}" aria-expanded="${expanded}" aria-controls="${detailsId}"
+              title="${expanded ? 'Tutup' : 'Buka'} spesifikasi ${this.escape(item.kode)}"
+              aria-label="${expanded ? 'Tutup' : 'Buka'} spesifikasi ${this.escape(item.kode)}">
+              ${this.actionIcon('chevron')}
+            </button>
+          </td>
+          <td><span class="asset-tag">${this.escape(item.kode || '-')}</span></td>
+          <td><strong>${this.escape(this.getHardwareCategory(item) || '-')}</strong></td>
+          <td class="barang-model-cell">${this.escape(item.merek || '-')}</td>
+          <td>${this.escape(year)}</td>
+          <td>${this.getStatusBadge(item.status)}</td>
+          <td class="barang-actions-cell">
+            <div class="barang-actions">
+              <button type="button" class="btn-icon edit" title="Edit Barang" aria-label="Edit ${this.escape(item.kode)}" data-hardware-action="edit" data-id="${id}">
+                ${this.actionIcon('edit')}
+              </button>
+              <button type="button" class="btn-icon delete" title="Hapus Barang" aria-label="Hapus ${this.escape(item.kode)}" data-hardware-action="delete" data-id="${id}">
+                ${this.actionIcon('delete')}
+              </button>
+              <button type="button" class="btn-icon qr" title="Lihat / Cetak QR" aria-label="Lihat atau cetak QR ${this.escape(item.kode)}" data-hardware-action="qr" data-id="${id}">
+                ${this.actionIcon('qr')}
+              </button>
+            </div>
+          </td>
+        </tr>
+        <tr class="barang-detail-row${expanded ? ' is-expanded' : ''}">
+          <td colspan="7">
+            <div class="barang-detail-clip" id="${detailsId}" aria-hidden="${!expanded}">
+              <div class="barang-detail-inner">${this.renderHardwareExpandedDetails(item)}</div>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
   },
 
   openHardwareModal(hardware = null) {
@@ -1021,7 +1192,7 @@ const App = {
     this.populatePemegangDropdown(hardware ? hardware.pemegang : '');
 
     if (hardware) {
-      title.innerHTML = '<span>✏️</span> Edit End-User Hardware';
+      title.textContent = 'Edit Master Barang';
       document.getElementById('hardware-id').value = hardware.id;
       document.getElementById('hardware-kode').value = hardware.kode;
       document.getElementById('hardware-jenis').value = hardware.jenis;
@@ -1031,9 +1202,13 @@ const App = {
       document.getElementById('hardware-pemegang').value = hardware.pemegang;
       document.getElementById('hardware-status').value = hardware.status;
       document.getElementById('hardware-tahun').value = hardware.tahun || '';
+      document.getElementById('hardware-prosesor').value = hardware.prosesor || '';
+      document.getElementById('hardware-ram').value = hardware.ram || '';
+      document.getElementById('hardware-penyimpanan').value = hardware.penyimpanan || '';
+      document.getElementById('hardware-keterangan-teknis').value = hardware.keterangan_teknis || '';
       this.updateMacPlaceholder(hardware.jenis);
     } else {
-      title.innerHTML = '<span>💻</span> Tambah End-User Hardware';
+      title.textContent = 'Tambah Master Barang';
       document.getElementById('hardware-id').value = '';
       this.updateMacPlaceholder('');
     }
@@ -1054,6 +1229,10 @@ const App = {
       pemegang: document.getElementById('hardware-pemegang').value,
       status: document.getElementById('hardware-status').value,
       tahun: parseInt(document.getElementById('hardware-tahun').value, 10) || new Date().getFullYear(),
+      prosesor: document.getElementById('hardware-prosesor').value.trim(),
+      ram: document.getElementById('hardware-ram').value.trim(),
+      penyimpanan: document.getElementById('hardware-penyimpanan').value.trim(),
+      keterangan_teknis: document.getElementById('hardware-keterangan-teknis').value.trim(),
       updatedAt: serverTimestamp()
     };
 
@@ -1077,9 +1256,9 @@ const App = {
       }
       await this.logActivity(id ? 'Edit' : 'Tambah', 'hardware', `${payload.kode} - ${payload.jenis}`);
       this.closeModal('modal-hardware');
-      this.showToast(id ? 'Perangkat hardware berhasil diperbarui.' : 'Perangkat hardware berhasil disimpan.');
+      this.showToast(id ? 'Data Master Barang berhasil diperbarui.' : 'Data Master Barang berhasil disimpan.');
     } catch (err) {
-      this.showToast('Gagal menyimpan perangkat hardware: ' + getUserFacingError(err), 'error');
+      this.showToast('Gagal menyimpan Master Barang: ' + getUserFacingError(err), 'error');
     }
   },
 
@@ -1103,6 +1282,84 @@ const App = {
         this.showToast('Gagal menghapus perangkat hardware: ' + getUserFacingError(err), 'error');
       }
     }
+  },
+
+  renderDataInventarisTable() {
+    const tbody = document.getElementById('table-inventaris-body');
+    const keyword = this.inventorySearchQuery.trim().toLowerCase();
+    const category = this.inventoryCategoryFilter;
+    const filtered = State.hardware.filter(item => {
+      const employee = this.findHardwareEmployee(item);
+      const matchCategory = category === 'all' || this.getHardwareCategory(item).toLowerCase() === category.toLowerCase();
+      const searchable = [
+        item.kode, item.jenis, item.merek, item.pemegang,
+        item.prosesor, item.ram, item.penyimpanan, item.keterangan_teknis,
+        employee && employee.nama, employee && employee.lokasi,
+        employee && this.getKaryawanDepartemen(employee)
+      ];
+      return matchCategory && searchable.some(value => String(value || '').toLowerCase().includes(keyword));
+    });
+
+    document.getElementById('showing-inventaris').textContent =
+      `Menampilkan ${filtered.length} dari ${State.hardware.length} inventaris`;
+
+    if (filtered.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center inventory-table-empty">Tidak ada inventaris yang cocok.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = filtered.map(item => {
+      const employee = this.findHardwareEmployee(item);
+      return `
+        <tr>
+          <td><span class="asset-tag">${this.escape(item.kode || '-')}</span></td>
+          <td><strong>${this.escape(item.pemegang || '-')}</strong></td>
+          <td>${this.escape(employee && employee.lokasi || '-')}</td>
+          <td>${this.escape(employee ? this.getKaryawanDepartemen(employee) : '-')}</td>
+          <td class="inventory-item-name">${this.escape(this.getHardwareCategory(item))} ${this.escape(item.merek || '')}</td>
+          <td>${this.getStatusBadge(item.status)}</td>
+          <td class="inventory-actions-cell">
+            <button type="button" class="inventory-view-button" title="Lihat detail aset"
+              aria-label="Lihat detail ${this.escape(item.kode)}"
+              data-inventory-action="view" data-id="${this.escape(item.id)}">
+              ${this.actionIcon('eye')}
+              <span>View</span>
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  },
+
+  openInventoryDetail(id) {
+    const item = State.hardware.find(asset => asset.id === id);
+    if (!item) {
+      this.showToast('Barang tidak ditemukan. Muat ulang Data Inventaris sebelum mencoba lagi.', 'warning');
+      return;
+    }
+    const employee = this.findHardwareEmployee(item);
+    const detailValues = {
+      'inventory-detail-code': item.kode,
+      'inventory-detail-type': this.getHardwareCategory(item),
+      'inventory-detail-model': item.merek,
+      'inventory-detail-holder': item.pemegang,
+      'inventory-detail-nik': employee && employee.nik,
+      'inventory-detail-position': employee && employee.jabatan,
+      'inventory-detail-location': employee && employee.lokasi,
+      'inventory-detail-department': employee && this.getKaryawanDepartemen(employee),
+      'inventory-detail-year': item.tahun || item.tahun_perolehan,
+      'inventory-detail-processor': item.prosesor,
+      'inventory-detail-ram': item.ram,
+      'inventory-detail-storage': item.penyimpanan,
+      'inventory-detail-serial': item.sn,
+      'inventory-detail-notes': item.keterangan_teknis
+    };
+    Object.entries(detailValues).forEach(([elementId, value]) => {
+      document.getElementById(elementId).textContent = value || '-';
+    });
+    document.getElementById('inventory-detail-condition').innerHTML = this.getStatusBadge(item.status);
+    document.getElementById('btn-inventory-detail-qr').dataset.assetId = item.id;
+    this.openModal('modal-inventaris-detail');
   },
 
   // --- CRUD: NETWORK & SERVER ---
@@ -1139,9 +1396,9 @@ const App = {
         <td>${this.getStatusBadge(item.status)}</td>
         <td style="text-align: center;">
           <div class="action-buttons" style="justify-content: center;">
-            <button class="btn-icon edit" title="Edit Perangkat" onclick="app.editNetwork('${item.id}')">✏️</button>
-            <button class="btn-icon delete" title="Hapus Perangkat" onclick="app.deleteNetwork('${item.id}', '${this.escape(item.kode)}')">🗑️</button>
-            <button class="btn-icon qr" title="Cetak Label QR" onclick="app.openAssetQr('network', '${item.id}')">QR</button>
+            <button type="button" class="btn-icon edit" title="Edit Perangkat" aria-label="Edit ${this.escape(item.kode)}" onclick="app.editNetwork('${item.id}')">${this.actionIcon('edit')}</button>
+            <button type="button" class="btn-icon delete" title="Hapus Perangkat" aria-label="Hapus ${this.escape(item.kode)}" onclick="app.deleteNetwork('${item.id}', '${this.escape(item.kode)}')">${this.actionIcon('delete')}</button>
+            <button type="button" class="btn-icon qr" title="Lihat / Cetak QR" aria-label="Lihat atau cetak QR ${this.escape(item.kode)}" onclick="app.openAssetQr('network', '${item.id}')">${this.actionIcon('qr')}</button>
           </div>
         </td>
       </tr>
@@ -1155,7 +1412,7 @@ const App = {
     form.reset();
 
     if (network) {
-      title.innerHTML = '<span>✏️</span> Edit Network &amp; Server';
+      title.textContent = 'Edit Network & Server';
       document.getElementById('network-id').value = network.id;
       document.getElementById('network-kode').value = network.kode;
       document.getElementById('network-nama').value = network.nama;
@@ -1165,7 +1422,7 @@ const App = {
       document.getElementById('network-lokasi').value = network.lokasi;
       document.getElementById('network-status').value = network.status;
     } else {
-      title.innerHTML = '<span>🌐</span> Tambah Network &amp; Server';
+      title.textContent = 'Tambah Network & Server';
       document.getElementById('network-id').value = '';
     }
     this.openModal('modal-network');
@@ -1275,6 +1532,14 @@ const App = {
       pic: (params.get('pic') || '').trim().slice(0, 120),
       status: (params.get('status') || '').trim().slice(0, 80)
     };
+    const qrSupportPhone = params.get('wa');
+    if (qrSupportPhone) {
+      const normalizedPhone = this.normalizeItSupportPhone(qrSupportPhone);
+      if (normalizedPhone === DEFAULT_IT_SUPPORT_PHONE || /^62\d{8,13}$/.test(normalizedPhone)) {
+        State.itSupportPhone = normalizedPhone;
+      }
+    }
+    this.publicQrData = publicData;
 
     document.getElementById('public-qr-code').textContent = publicData.kode || '-';
     document.getElementById('public-qr-type').textContent = publicData.jenis || '-';
@@ -1284,26 +1549,40 @@ const App = {
       publicData.status || 'Status tidak tersedia'
     );
 
+    this.updatePublicQrReportLink();
+
+    const overlay = document.getElementById('public-qr-overlay');
+    overlay.hidden = false;
+    document.getElementById('btn-close-public-qr').focus();
+  },
+
+  updatePublicQrReportLink() {
     const reportLink = document.getElementById('public-qr-report');
-    if (publicData.kode) {
-      const reportMessage = `Halo IT Support, saya ingin melaporkan kendala pada aset ${publicData.kode} (${publicData.jenis || 'jenis tidak diketahui'}).`;
-      const whatsappUrl = new URL('https://wa.me/');
-      whatsappUrl.searchParams.set('text', reportMessage);
-      reportLink.href = whatsappUrl.toString();
-      reportLink.removeAttribute('aria-disabled');
-      reportLink.tabIndex = 0;
-    } else {
-      const error = document.getElementById('public-qr-error');
+    const error = document.getElementById('public-qr-error');
+    const publicData = this.publicQrData;
+    if (!publicData || !publicData.kode) {
       error.textContent = 'Kode aset tidak tersedia pada tautan QR ini. Silakan hubungi Admin IT.';
       error.hidden = false;
       reportLink.removeAttribute('href');
       reportLink.setAttribute('aria-disabled', 'true');
       reportLink.tabIndex = -1;
+      return;
     }
 
-    const overlay = document.getElementById('public-qr-overlay');
-    overlay.hidden = false;
-    document.getElementById('btn-close-public-qr').focus();
+    const phone = this.normalizeItSupportPhone(State.itSupportPhone);
+    const reportMessage = [
+      'Halo IT Support, saya ingin melaporkan kendala aset.',
+      `Kode Aset: ${publicData.kode}`,
+      `Jenis Barang: ${publicData.jenis || 'Tidak tersedia'}`,
+      `Merek & Tipe: ${publicData.merk || 'Tidak tersedia'}`,
+      `Pemegang aset: ${publicData.pic || 'Tidak tersedia'}`
+    ].join('\n');
+    const whatsappUrl = new URL(`https://wa.me/${encodeURIComponent(phone)}`);
+    whatsappUrl.searchParams.set('text', reportMessage);
+    reportLink.href = whatsappUrl.toString();
+    reportLink.removeAttribute('aria-disabled');
+    reportLink.tabIndex = 0;
+    error.hidden = true;
   },
 
   closePublicQr() {
@@ -1344,6 +1623,7 @@ const App = {
     qrUrl.searchParams.set('merk', labelData.model);
     qrUrl.searchParams.set('pic', labelData.pemegang);
     qrUrl.searchParams.set('status', labelData.status);
+    qrUrl.searchParams.set('wa', this.normalizeItSupportPhone(State.itSupportPhone));
 
     document.getElementById('qr-asset-code').textContent = labelData.kode;
     document.getElementById('qr-asset-name').textContent = labelData.nama;
@@ -1426,8 +1706,8 @@ const App = {
         <td>${this.getVehicleConditionBadge(item.kondisi)}</td>
         <td style="text-align: center;">
           <div class="action-buttons" style="justify-content: center;">
-            <button class="btn-icon edit" title="Edit Kendaraan" onclick="app.editKendaraan('${item.id}')">✏️</button>
-            <button class="btn-icon delete" title="Hapus Kendaraan" onclick="app.deleteKendaraan('${item.id}')">🗑️</button>
+            <button type="button" class="btn-icon edit" title="Edit Kendaraan" aria-label="Edit ${this.escape(item.no_polisi)}" onclick="app.editKendaraan('${item.id}')">${this.actionIcon('edit')}</button>
+            <button type="button" class="btn-icon delete" title="Hapus Kendaraan" aria-label="Hapus ${this.escape(item.no_polisi)}" onclick="app.deleteKendaraan('${item.id}')">${this.actionIcon('delete')}</button>
           </div>
         </td>
       </tr>
@@ -1439,9 +1719,9 @@ const App = {
     const form = document.getElementById('form-kendaraan');
     form.reset();
     this.populateKendaraanPemegangDropdown(kendaraan ? kendaraan.pemegang : '');
-    document.getElementById('modal-kendaraan-title').innerHTML = kendaraan
-      ? '<span>✏️</span> Edit Kendaraan'
-      : '<span>🚙</span> Tambah Kendaraan';
+    document.getElementById('modal-kendaraan-title').textContent = kendaraan
+      ? 'Edit Kendaraan'
+      : 'Tambah Kendaraan';
     document.getElementById('kendaraan-id').value = kendaraan ? kendaraan.id : '';
     document.getElementById('kendaraan-no-polisi').value = kendaraan ? kendaraan.no_polisi || '' : '';
     document.getElementById('kendaraan-jenis').value = kendaraan ? kendaraan.jenis || '' : '';
@@ -1546,8 +1826,8 @@ const App = {
         <td>${this.escape(item.keterangan || '-')}</td>
         <td style="text-align: center;">
           <div class="action-buttons" style="justify-content: center;">
-            <button class="btn-icon edit" title="Edit Kehadiran" onclick="app.editKehadiran('${item.id}')">✏️</button>
-            <button class="btn-icon delete" title="Hapus Kehadiran" onclick="app.deleteKehadiran('${item.id}')">🗑️</button>
+            <button type="button" class="btn-icon edit" title="Edit Kehadiran" aria-label="Edit catatan ${this.escape(item.nama_karyawan)}" onclick="app.editKehadiran('${item.id}')">${this.actionIcon('edit')}</button>
+            <button type="button" class="btn-icon delete" title="Hapus Kehadiran" aria-label="Hapus catatan ${this.escape(item.nama_karyawan)}" onclick="app.deleteKehadiran('${item.id}')">${this.actionIcon('delete')}</button>
           </div>
         </td>
       </tr>
@@ -1563,9 +1843,9 @@ const App = {
       kehadiran ? kehadiran.nama_karyawan : '',
       kehadiran ? kehadiran.nik_karyawan : ''
     );
-    document.getElementById('modal-kehadiran-title').innerHTML = kehadiran
-      ? '<span>✏️</span> Edit Kehadiran'
-      : '<span>🗓️</span> Catat Kehadiran';
+    document.getElementById('modal-kehadiran-title').textContent = kehadiran
+      ? 'Edit Kehadiran'
+      : 'Catat Kehadiran';
     document.getElementById('kehadiran-id').value = kehadiran ? kehadiran.id : '';
     document.getElementById('kehadiran-tanggal').value = kehadiran ? kehadiran.tanggal || '' : this.getTodayDate();
     document.getElementById('kehadiran-status').value = kehadiran ? kehadiran.status || 'Hadir' : 'Hadir';
@@ -1642,8 +1922,8 @@ const App = {
     hardware.forEach(h => {
       allAssets.push({
         kode: h.kode,
-        kelompok: 'End-User Hardware',
-        nama: `${h.jenis} - ${h.merek}`,
+        kelompok: 'Master Barang',
+        nama: `${this.getHardwareCategory(h)} - ${h.merek}`,
         sn: h.sn,
         koneksi: h.mac || '-',
         pj: h.pemegang,
@@ -1680,7 +1960,7 @@ const App = {
         <tr>
           <td class="row-num">${index + 1}</td>
           <td><span class="asset-tag">${this.escape(item.kode)}</span></td>
-          <td><span class="badge ${item.kelompok === 'End-User Hardware' ? 'badge-info' : 'badge-gender male'}">${item.kelompok}</span></td>
+          <td><span class="badge ${item.kelompok === 'Master Barang' ? 'badge-info' : 'badge-gender male'}">${item.kelompok}</span></td>
           <td><strong>${this.escape(item.nama)}</strong></td>
           <td><span class="serial-num">${this.escape(item.sn)}</span></td>
           <td style="font-size: 0.78rem;">${this.escape(item.koneksi)}</td>
@@ -1692,7 +1972,7 @@ const App = {
 
     const employeeTbody = document.getElementById('table-audit-karyawan-body');
     if (State.karyawan.length === 0) {
-      employeeTbody.innerHTML = '<tr><td colspan="9" class="text-center" style="padding: 24px; color: var(--text-muted);">Belum ada data karyawan.</td></tr>';
+      employeeTbody.innerHTML = '<tr><td colspan="10" class="text-center" style="padding: 24px; color: var(--text-muted);">Belum ada data karyawan.</td></tr>';
       return;
     }
 
@@ -1703,6 +1983,7 @@ const App = {
         <td><strong>${this.escape(karyawan.nama || '-')}</strong></td>
         <td>${this.escape(karyawan.jabatan || '-')}</td>
         <td>${this.escape(this.getKaryawanDepartemen(karyawan))}</td>
+        <td>${this.getKaryawanStatusBadge(karyawan.status_karyawan)}</td>
         <td class="employee-tenure-cell">${this.renderKaryawanTenure(karyawan)}</td>
         <td>${this.escape(karyawan.lokasi || '-')}</td>
         <td>${this.getKaryawanInventoryBadge(karyawan.statusInventaris)}</td>
@@ -1734,11 +2015,12 @@ const App = {
   },
 
   exportKaryawanCSV() {
-    let csv = 'No,NIK/NIP,Nama Karyawan,Jabatan,Departemen/Bagian,Masa Jabatan,Tanggal Mulai Menjabat,Akhir Masa Jabatan / Estimasi Pensiun,Status Kepegawaian,Lokasi,Status Inventaris IT,Penjelasan Inventaris IT\n';
+    let csv = 'No,NIK/NIP,Nama Karyawan,Jabatan,Departemen/Bagian,Status Karyawan (Entitas/Asal),Masa Jabatan,Tanggal Mulai Menjabat,Akhir Masa Jabatan / Estimasi Pensiun,Status Kepegawaian,Lokasi,Status Inventaris IT,Penjelasan Inventaris IT\n';
     State.karyawan.forEach((k, idx) => {
       csv += [
         idx + 1, k.nik, k.nama, k.jabatan, this.getKaryawanDepartemen(k),
-        this.getKaryawanTenureExportValue(k), k.tanggal_mulai, k.akhir_jabatan,
+        this.getKaryawanStatus(k.status_karyawan), this.getKaryawanTenureExportValue(k),
+        k.tanggal_mulai, k.akhir_jabatan,
         this.getEmploymentStatusLabel(k.status_jabatan), k.lokasi, k.statusInventaris, k.keteranganInventaris
       ]
         .map(value => this.csvCell(value)).join(',') + '\n';
@@ -1747,9 +2029,13 @@ const App = {
   },
 
   exportHardwareCSV() {
-    let csv = 'Kode Aset,Jenis Perangkat,Merek & Tipe,Serial Number,MAC Address,Pemegang,Kondisi,Tahun Beli\n';
+    let csv = 'Kode Aset,Jenis Perangkat,Merek & Tipe,Serial Number,MAC Address,Pemegang,Kondisi,Tahun Perolehan,Prosesor,RAM,Penyimpanan (HDD / SSD),Keterangan Teknis\n';
     State.hardware.forEach(h => {
-      csv += `"${h.kode}","${h.jenis}","${h.merek}","${h.sn}","${h.mac || '-'}","${h.pemegang}","${h.status}","${h.tahun || '-'}"\n`;
+      csv += [
+        h.kode, this.getHardwareCategory(h), h.merek, h.sn, h.mac || '-',
+        h.pemegang, h.status, h.tahun || h.tahun_perolehan || '-',
+        h.prosesor, h.ram, h.penyimpanan, h.keterangan_teknis
+      ].map(value => this.csvCell(value)).join(',') + '\n';
     });
     this.downloadCSV('Inventaris_Hardware_Agrinas.csv', csv);
   },
@@ -1783,17 +2069,24 @@ const App = {
   exportAuditCSV() {
     let csv = 'Kode Aset,Kategori,Nama Perangkat,Serial Number,IP Address,MAC Address,Penanggung Jawab / Lokasi,Status\n';
     State.hardware.forEach(h => {
-      csv += `"${h.kode}","End-User Hardware","${h.jenis} - ${h.merek}","${h.sn}","-","${h.mac || '-'}","${h.pemegang}","${h.status}"\n`;
+      csv += [
+        h.kode, 'Master Barang', `${this.getHardwareCategory(h)} - ${h.merek}`,
+        h.sn, '-', h.mac || '-', h.pemegang, h.status
+      ].map(value => this.csvCell(value)).join(',') + '\n';
     });
     State.network.forEach(n => {
-      csv += `"${n.kode}","Network & Server","${n.kategori} - ${n.nama}","-","${n.ip || '-'}","${n.mac || '-'}","${n.lokasi}","${n.status}"\n`;
+      csv += [
+        n.kode, 'Network & Server', `${n.kategori} - ${n.nama}`,
+        '-', n.ip || '-', n.mac || '-', n.lokasi, n.status
+      ].map(value => this.csvCell(value)).join(',') + '\n';
     });
     csv += '\n\nData Karyawan & Inventaris IT\n';
-    csv += 'No,NIK/NIP,Nama Karyawan,Jabatan,Departemen/Bagian,Masa Jabatan,Tanggal Mulai Menjabat,Akhir Masa Jabatan / Estimasi Pensiun,Status Kepegawaian,Lokasi,Status Inventaris IT,Penjelasan Inventaris IT\n';
+    csv += 'No,NIK/NIP,Nama Karyawan,Jabatan,Departemen/Bagian,Status Karyawan (Entitas/Asal),Masa Jabatan,Tanggal Mulai Menjabat,Akhir Masa Jabatan / Estimasi Pensiun,Status Kepegawaian,Lokasi,Status Inventaris IT,Penjelasan Inventaris IT\n';
     State.karyawan.forEach((karyawan, index) => {
       csv += [
         index + 1, karyawan.nik, karyawan.nama, karyawan.jabatan, this.getKaryawanDepartemen(karyawan),
-        this.getKaryawanTenureExportValue(karyawan), karyawan.tanggal_mulai, karyawan.akhir_jabatan,
+        this.getKaryawanStatus(karyawan.status_karyawan), this.getKaryawanTenureExportValue(karyawan),
+        karyawan.tanggal_mulai, karyawan.akhir_jabatan,
         this.getEmploymentStatusLabel(karyawan.status_jabatan), karyawan.lokasi,
         karyawan.statusInventaris, karyawan.keteranganInventaris
       ].map(value => this.csvCell(value)).join(',') + '\n';
@@ -1927,7 +2220,7 @@ const App = {
     const k = (keyword || '').toLowerCase().trim();
     const matchedKaryawan = State.karyawan.filter(item =>
       [
-        item.nama, item.nik, item.jabatan, item.departemen, item.divisi, item.lokasi,
+        item.nama, item.nik, item.jabatan, item.departemen, item.divisi, item.lokasi, item.status_karyawan,
         item.statusInventaris, item.keteranganInventaris,
         item.tanggal_mulai, item.akhir_jabatan, item.status_jabatan
       ].some(value => String(value || '').toLowerCase().includes(k))
@@ -1981,7 +2274,7 @@ const App = {
 
     let html = '';
     if (results.hardware.length > 0) {
-      html += `<div class="search-result-group"><span>💻 End-User Hardware (${results.hardware.length})</span></div>`;
+      html += `<div class="search-result-group"><span>Master Barang (${results.hardware.length})</span></div>`;
       results.hardware.slice(0, 4).forEach(h => {
         html += `
           <div class="search-result-item" onclick="app.selectSearchResult('hardware')">
@@ -1996,13 +2289,13 @@ const App = {
     }
 
     if (results.karyawan.length > 0) {
-      html += `<div class="search-result-group"><span>👥 Data Karyawan (${results.karyawan.length})</span></div>`;
+      html += `<div class="search-result-group"><span>Master Karyawan (${results.karyawan.length})</span></div>`;
       results.karyawan.slice(0, 4).forEach(k => {
         html += `
           <div class="search-result-item" onclick="app.selectSearchResult('karyawan')">
             <div class="item-main">
               <div class="item-title">${this.escape(k.nama)} &bull; <small style="color:var(--text-muted)">${this.escape(k.nik)}</small></div>
-              <div class="item-sub">${this.escape(k.jabatan)} &bull; ${this.escape(this.getKaryawanDepartemen(k))} &bull; ${this.escape(k.lokasi || '-')}</div>
+              <div class="item-sub">${this.escape(k.jabatan)} &bull; ${this.escape(this.getKaryawanDepartemen(k))} &bull; ${this.escape(k.lokasi || '-')} &bull; ${this.escape(this.getKaryawanStatus(k.status_karyawan))}</div>
             </div>
             <span class="btn btn-outline btn-sm">Lihat</span>
           </div>
@@ -2011,7 +2304,7 @@ const App = {
     }
 
     if (results.network.length > 0) {
-      html += `<div class="search-result-group"><span>🌐 Network &amp; Server (${results.network.length})</span></div>`;
+      html += `<div class="search-result-group"><span>Network &amp; Server (${results.network.length})</span></div>`;
       results.network.slice(0, 4).forEach(n => {
         html += `
           <div class="search-result-item" onclick="app.selectSearchResult('network')">
@@ -2026,7 +2319,7 @@ const App = {
     }
 
     if (results.kendaraan.length > 0) {
-      html += `<div class="search-result-group"><span>🚙 Kendaraan Operasional (${results.kendaraan.length})</span></div>`;
+      html += `<div class="search-result-group"><span>Kendaraan Operasional (${results.kendaraan.length})</span></div>`;
       results.kendaraan.slice(0, 4).forEach(item => {
         html += `
           <div class="search-result-item" onclick="app.selectSearchResult('kendaraan')">
@@ -2041,7 +2334,7 @@ const App = {
     }
 
     if (results.kehadiran.length > 0) {
-      html += `<div class="search-result-group"><span>🗓️ Data Kehadiran (${results.kehadiran.length})</span></div>`;
+      html += `<div class="search-result-group"><span>Data Kehadiran (${results.kehadiran.length})</span></div>`;
       results.kehadiran.slice(0, 4).forEach(item => {
         html += `
           <div class="search-result-item" onclick="app.selectSearchResult('kehadiran')">
@@ -2080,6 +2373,62 @@ const App = {
       managerInput.value = '';
     }
     this.updateReportSignatureNames();
+  },
+
+  normalizeItSupportPhone(value) {
+    const raw = String(value || '').trim();
+    if (!raw || raw.toUpperCase() === DEFAULT_IT_SUPPORT_PHONE) {
+      return DEFAULT_IT_SUPPORT_PHONE;
+    }
+
+    let digits = raw.replace(/\D/g, '');
+    if (digits.startsWith('0')) digits = `62${digits.slice(1)}`;
+    else if (digits.startsWith('8')) digits = `62${digits}`;
+    return digits || DEFAULT_IT_SUPPORT_PHONE;
+  },
+
+  applyItSupportPhone(value) {
+    State.itSupportPhone = this.normalizeItSupportPhone(value);
+    const input = document.getElementById('it-support-phone');
+    if (input && document.activeElement !== input) {
+      input.value = State.itSupportPhone;
+    }
+    this.updatePublicQrReportLink();
+  },
+
+  setItSupportSettingsStatus(message, isError = false) {
+    const status = document.getElementById('it-support-settings-status');
+    if (!status) return;
+    status.textContent = message;
+    status.classList.toggle('error', isError);
+  },
+
+  async saveItSupportSettings(e) {
+    e.preventDefault();
+    if (!this.requireAdmin()) return;
+
+    const input = document.getElementById('it-support-phone');
+    const phone = this.normalizeItSupportPhone(input.value);
+    if (phone !== DEFAULT_IT_SUPPORT_PHONE && !/^62\d{8,13}$/.test(phone)) {
+      this.setItSupportSettingsStatus('Masukkan nomor WhatsApp valid dengan kode negara, contoh 6282138098917.', true);
+      input.focus();
+      return;
+    }
+
+    try {
+      await setDoc(doc(db, 'settings', 'it_support'), {
+        whatsappNumber: phone,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      input.value = phone;
+      this.applyItSupportPhone(phone);
+      this.setItSupportSettingsStatus('Nomor WhatsApp IT Support berhasil disimpan.');
+      this.showToast('Nomor WhatsApp IT Support berhasil diperbarui.');
+    } catch (error) {
+      console.error('Gagal menyimpan nomor WhatsApp IT Support:', error);
+      this.setItSupportSettingsStatus(`Gagal menyimpan nomor WhatsApp: ${getUserFacingError(error)}`, true);
+      this.showToast('Gagal menyimpan nomor WhatsApp IT Support: ' + getUserFacingError(error), 'error');
+    }
   },
 
   saveAuditSignatures(e) {
@@ -2267,6 +2616,17 @@ const App = {
     return `<span class="badge">${this.escape(status)}</span>`;
   },
 
+  actionIcon(name) {
+    const shapes = {
+      edit: '<path d="m14 5 5 5M4 20l4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20Z"></path>',
+      delete: '<path d="M3 6h18M8 6V4h8v2m3 0-1 14H6L5 6m4 4v6m6-6v6"></path>',
+      eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle>',
+      qr: '<rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><path d="M14 14h3v3h-3zM20 14v2M14 20h2M20 19v2"></path>',
+      chevron: '<path d="m6 9 6 6 6-6"></path>'
+    };
+    return `<svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${shapes[name]}</svg>`;
+  },
+
   escape(text) {
     if (!text) return '';
     return String(text).replace(/[&<>"']/g, m => ({
@@ -2420,6 +2780,14 @@ const App = {
       this.hardwareStatusFilter = e.target.value;
       this.renderHardwareTable();
     });
+    document.getElementById('inventory-search-input').addEventListener('input', (e) => {
+      this.inventorySearchQuery = e.target.value;
+      this.renderDataInventarisTable();
+    });
+    document.getElementById('inventory-category-filter').addEventListener('change', (e) => {
+      this.inventoryCategoryFilter = e.target.value;
+      this.renderDataInventarisTable();
+    });
     document.getElementById('network-status-filter').addEventListener('change', (e) => {
       this.networkStatusFilter = e.target.value;
       this.renderNetworkTable();
@@ -2439,11 +2807,39 @@ const App = {
       });
     });
 
+    document.getElementById('table-hardware-body').addEventListener('click', (e) => {
+      const button = e.target.closest('[data-hardware-action]');
+      if (!button) return;
+      const { id } = button.dataset;
+      const action = button.dataset.hardwareAction;
+      if (action === 'toggle') {
+        if (this.expandedHardwareIds.has(id)) this.expandedHardwareIds.delete(id);
+        else this.expandedHardwareIds.add(id);
+        this.renderHardwareTable();
+        return;
+      }
+      if (action === 'edit') this.editHardware(id);
+      if (action === 'delete') {
+        const item = State.hardware.find(hardware => hardware.id === id);
+        if (item) this.deleteHardware(id, item.kode);
+      }
+      if (action === 'qr') this.openAssetQr('hardware', id);
+    });
+
+    document.getElementById('table-inventaris-body').addEventListener('click', (e) => {
+      const button = e.target.closest('[data-inventory-action="view"]');
+      if (button) this.openInventoryDetail(button.dataset.id);
+    });
+
     document.getElementById('table-karyawan-body').addEventListener('click', (e) => {
       const button = e.target.closest('[data-karyawan-action]');
       if (!button) return;
       const { id } = button.dataset;
       const action = button.dataset.karyawanAction;
+      if (action === 'toggle') {
+        this.toggleKaryawanRow(id);
+        return;
+      }
       if (action === 'detail') this.showKaryawanDetail(id);
       if (action === 'edit') this.editKaryawan(id);
       if (action === 'delete') this.deleteKaryawan(id);
@@ -2463,7 +2859,16 @@ const App = {
     document.getElementById('form-kehadiran').addEventListener('submit', (e) => this.saveKehadiran(e));
     document.getElementById('form-update-profile').addEventListener('submit', (e) => this.saveProfile(e));
     document.getElementById('form-audit-signatures').addEventListener('submit', (e) => this.saveAuditSignatures(e));
+    document.getElementById('form-it-support-settings').addEventListener('submit', (e) => this.saveItSupportSettings(e));
     document.getElementById('btn-print-qr').addEventListener('click', () => this.printQrLabel());
+    document.getElementById('btn-inventory-detail-qr').addEventListener('click', () => {
+      const assetId = document.getElementById('btn-inventory-detail-qr').dataset.assetId;
+      if (!assetId) {
+        this.showToast('Pilih aset terlebih dahulu untuk menampilkan QR Code.', 'warning');
+        return;
+      }
+      this.openAssetQr('hardware', assetId);
+    });
 
     document.getElementById('btn-tambah-karyawan').addEventListener('click', () => this.openKaryawanModal());
     document.getElementById('btn-tambah-hardware').addEventListener('click', () => this.openHardwareModal());

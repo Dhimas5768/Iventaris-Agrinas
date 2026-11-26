@@ -133,14 +133,21 @@
           <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
           <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
         </svg>
-        <span>Data Karyawan</span>
+        <span>Master Karyawan</span>
       </a>
       <a href="#hardware" class="nav-link" data-view="hardware">
         <svg class="nav-icon" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
           <rect x="3" y="4" width="18" height="13" rx="2"></rect>
           <path d="M8 21h8M12 17v4"></path>
         </svg>
-        <span>End-User Hardware</span>
+        <span>Master Barang</span>
+      </a>
+      <a href="#inventaris" class="nav-link" data-view="inventaris">
+        <svg class="nav-icon" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v17H6.5A2.5 2.5 0 0 1 4 17.5z"></path>
+          <path d="M4 17.5A2.5 2.5 0 0 1 6.5 15H20M8 7h8M8 10h6"></path>
+        </svg>
+        <span>Data Inventaris</span>
       </a>
       <a href="#network" class="nav-link" data-view="network">
         <svg class="nav-icon" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
@@ -348,28 +355,34 @@
       <!-- ==================== VIEW 2: DATA KARYAWAN ==================== -->
       <div id="view-karyawan" class="view-section">
         <div class="section-header">
-          <h2>Data Karyawan</h2>
+          <h2>Master Karyawan</h2>
           <div class="section-actions">
             <button class="btn btn-primary" id="btn-tambah-karyawan" data-admin-only>+ Tambah Karyawan</button>
             <button class="btn btn-outline" onclick="app.exportKaryawanCSV()"> Ekspor CSV</button>
           </div>
         </div>
 
-        <div class="table-wrapper">
-          <div class="table-scroll">
+        <div class="table-wrapper employee-table-wrapper">
+          <div class="table-scroll employee-table-scroll">
             <table class="table-karyawan">
+              <colgroup>
+                <col class="employee-expand-column">
+                <col class="employee-number-column">
+                <col class="employee-name-column">
+                <col class="employee-location-column">
+                <col class="employee-department-column">
+                <col class="employee-status-column">
+                <col class="employee-actions-column">
+              </colgroup>
               <thead>
                 <tr>
+                  <th aria-label="Detail"></th>
                   <th>No</th>
-                  <th>NIK / NIP</th>
                   <th>Nama Karyawan</th>
-                  <th>Jabatan</th>
-                  <th>Departemen / Bagian</th>
-                  <th>Masa Jabatan</th>
-                  <th>Lokasi</th>
-                  <th>Status Inventaris IT</th>
-                  <th>Penjelasan Inventaris IT</th>
-                  <th style="text-align: center;">Aksi</th>
+                  <th>Lokasi Kerja</th>
+                  <th>Departemen</th>
+                  <th>Status Karyawan</th>
+                  <th class="employee-actions-heading">Aksi</th>
                 </tr>
               </thead>
               <tbody id="table-karyawan-body"></tbody>
@@ -384,14 +397,16 @@
       <!-- ==================== VIEW 3: END-USER HARDWARE ==================== -->
       <div id="view-hardware" class="view-section">
         <div class="section-header">
-          <h2>Perangkat Keras Utama (End-User Hardware)</h2>
+          <h2>Master Barang</h2>
           <div class="section-actions">
             <div class="filter-tabs" id="hardware-filter-tabs">
               <button class="filter-tab active" data-filter="all">Semua</button>
               <button class="filter-tab" data-filter="Laptop">Laptop</button>
+              <button class="filter-tab" data-filter="PC">PC</button>
               <button class="filter-tab" data-filter="PC Desktop">PC Desktop</button>
               <button class="filter-tab" data-filter="Printer">Printer</button>
               <button class="filter-tab" data-filter="Monitor">Monitor</button>
+              <button class="filter-tab" data-filter="UPS">UPS</button>
             </div>
             <select id="hardware-status-filter" class="asset-status-filter" aria-label="Filter status hardware">
               <option value="all">Semua Status</option>
@@ -400,24 +415,32 @@
               <option value="Rusak">Rusak</option>
               <option value="critical">Perlu Servis / Rusak</option>
             </select>
-            <button class="btn btn-primary" id="btn-tambah-hardware" data-admin-only>+ Tambah Perangkat</button>
+            <button class="btn btn-primary" id="btn-tambah-hardware" data-admin-only>+ Tambah Barang</button>
             <button class="btn btn-outline" onclick="app.exportHardwareCSV()"> Ekspor CSV</button>
           </div>
         </div>
 
-        <div class="table-wrapper">
-          <div class="table-scroll">
-            <table>
+        <div class="table-wrapper master-barang-table-wrapper">
+          <div class="table-scroll master-barang-table-scroll">
+            <table class="table-master-barang">
+              <colgroup>
+                <col class="barang-expand-column">
+                <col class="barang-code-column">
+                <col class="barang-type-column">
+                <col class="barang-model-column">
+                <col class="barang-year-column">
+                <col class="barang-condition-column">
+                <col class="barang-actions-column">
+              </colgroup>
               <thead>
                 <tr>
+                  <th aria-label="Detail"></th>
                   <th>Kode Aset</th>
-                  <th>Jenis</th>
+                  <th>Jenis Barang</th>
                   <th>Merek &amp; Tipe</th>
-                  <th>Serial Number</th>
-                  <th>MAC Address</th>
-                  <th>Pemegang</th>
-                  <th>Kondisi / Status</th>
-                  <th style="text-align: center;">Aksi</th>
+                  <th>Tahun Perolehan</th>
+                  <th>Kondisi</th>
+                  <th class="barang-actions-heading">Aksi</th>
                 </tr>
               </thead>
               <tbody id="table-hardware-body"></tbody>
@@ -425,6 +448,64 @@
           </div>
           <div class="table-footer">
             <div class="showing" id="showing-hardware">Menampilkan 0 perangkat</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== VIEW: DATA INVENTARIS ==================== -->
+      <div id="view-inventaris" class="view-section">
+        <div class="section-header inventory-view-header">
+          <h2>Data Inventaris</h2>
+          <div class="inventory-view-filters">
+            <label class="inventory-search-control">
+              <span class="sr-only">Cari inventaris</span>
+              <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                <circle cx="11" cy="11" r="7"></circle>
+                <path d="m20 20-4-4"></path>
+              </svg>
+              <input type="search" id="inventory-search-input" placeholder="Cari nama, kode aset, barang, lokasi, departemen..." autocomplete="off">
+            </label>
+            <label class="inventory-category-control">
+              <span class="sr-only">Filter kategori inventaris</span>
+              <select id="inventory-category-filter">
+                <option value="all">Semua Kategori</option>
+                <option value="Laptop">Laptop</option>
+                <option value="PC">PC</option>
+                <option value="Printer">Printer</option>
+                <option value="UPS">UPS</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div class="table-wrapper inventory-table-wrapper">
+          <div class="table-scroll inventory-table-scroll">
+            <table class="table-data-inventaris">
+              <colgroup>
+                <col class="inventory-code-column">
+                <col class="inventory-holder-column">
+                <col class="inventory-location-column">
+                <col class="inventory-department-column">
+                <col class="inventory-item-column">
+                <col class="inventory-condition-column">
+                <col class="inventory-actions-column">
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>Kode Aset</th>
+                  <th>Nama Karyawan / Pemegang</th>
+                  <th>Lokasi Kerja</th>
+                  <th>Departemen</th>
+                  <th>Barang &amp; Tipe</th>
+                  <th>Kondisi</th>
+                  <th>Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="table-inventaris-body"></tbody>
+            </table>
+          </div>
+          <div class="table-footer">
+            <div class="showing" id="showing-inventaris">Menampilkan 0 inventaris</div>
           </div>
         </div>
       </div>
@@ -626,6 +707,7 @@
                     <th>Nama Karyawan</th>
                     <th>Jabatan</th>
                     <th>Departemen / Bagian</th>
+                    <th>Status Karyawan</th>
                     <th>Masa Jabatan</th>
                     <th>Lokasi</th>
                     <th>Status Inventaris IT</th>
@@ -691,6 +773,20 @@
             </form>
           </div>
 
+          <div class="settings-card" data-admin-only>
+            <h3>Kontak IT Support</h3>
+            <p class="settings-desc">Nomor ini digunakan pada tombol laporan kendala di halaman publik QR aset.</p>
+            <form id="form-it-support-settings">
+              <div class="form-group" style="margin-bottom: 12px;">
+                <label for="it-support-phone">Nomor WhatsApp IT Support</label>
+                <input type="text" id="it-support-phone" value="6282138098917" inputmode="numeric" autocomplete="off" required>
+                <small class="form-hint">Gunakan kode negara, misalnya 6281234567890.</small>
+              </div>
+              <button type="submit" class="btn btn-primary">Simpan Nomor WhatsApp</button>
+              <p id="it-support-settings-status" class="it-support-settings-status" role="status" aria-live="polite"></p>
+            </form>
+          </div>
+
           <div class="settings-card">
             <h3>Profil &amp; Keamanan Akun</h3>
             <p class="settings-desc">Perbarui nama tampilan atau ganti kata sandi akun Anda.</p>
@@ -746,7 +842,7 @@
   <div id="modal-karyawan" class="modal-overlay">
     <div class="modal-container">
       <div class="modal-header">
-        <h3 id="modal-karyawan-title">Tambah Data Karyawan</h3>
+        <h3 id="modal-karyawan-title">Tambah Master Karyawan</h3>
         <button class="modal-close" data-close="modal-karyawan">&times;</button>
       </div>
       <form id="form-karyawan">
@@ -766,19 +862,37 @@
               <input type="text" id="karyawan-jabatan" required placeholder="Contoh: Manager IT, Staf Keuangan, Asisten Kepala">
             </div>
             <div class="form-group">
-              <label for="karyawan-departemen">Departemen / Bagian</label>
+              <label for="karyawan-departemen">Departemen</label>
               <input type="text" id="karyawan-departemen" list="karyawan-departemen-options" placeholder="Pilih atau ketik departemen">
               <datalist id="karyawan-departemen-options">
-                <option value="IT Infrastructure"></option>
-                <option value="Keuangan & Akuntansi"></option>
+                <option value="IT"></option>
+                <option value="Keuangan"></option>
+                <option value="Pengadaan"></option>
                 <option value="Operasional Kebun"></option>
                 <option value="HRD & GA"></option>
                 <option value="Logistik"></option>
               </datalist>
             </div>
             <div class="form-group">
-              <label for="karyawan-lokasi">Lokasi Penempatan</label>
-              <input type="text" id="karyawan-lokasi" placeholder="Regional Pontianak / Distrik I / Distrik II / Kantor Pusat">
+              <label for="karyawan-lokasi">Lokasi Kerja</label>
+              <input type="text" id="karyawan-lokasi" list="karyawan-lokasi-options" placeholder="Pilih atau ketik lokasi kerja">
+              <datalist id="karyawan-lokasi-options">
+                <option value="HO"></option>
+                <option value="CRO"></option>
+                <option value="Distrik"></option>
+                <option value="KBL"></option>
+                <option value="Regional Pontianak"></option>
+              </datalist>
+            </div>
+            <div class="form-group col-span-2">
+              <label for="karyawan-status-karyawan">Status Karyawan (Entitas / Asal) <span style="color:var(--danger)">*</span></label>
+              <select id="karyawan-status-karyawan" required>
+                <option value="">Pilih status karyawan...</option>
+                <option value="APN (HO)">APN (HO)</option>
+                <option value="Ex-DPN (Agrinas)">Ex-DPN (Agrinas)</option>
+                <option value="Karyawan Tetap">Karyawan Tetap</option>
+                <option value="Karyawan Kontrak (PKWT)">Karyawan Kontrak (PKWT)</option>
+              </select>
             </div>
             <div class="form-group col-span-2">
               <label for="karyawan-status-inventaris">Status Inventaris IT <span style="color:var(--danger)">*</span></label>
@@ -890,7 +1004,7 @@
   <div id="modal-hardware" class="modal-overlay">
     <div class="modal-container modal-lg">
       <div class="modal-header">
-        <h3 id="modal-hardware-title">Tambah End-User Hardware</h3>
+        <h3 id="modal-hardware-title">Tambah Master Barang</h3>
         <button class="modal-close" data-close="modal-hardware">&times;</button>
       </div>
       <form id="form-hardware">
@@ -906,8 +1020,10 @@
               <select id="hardware-jenis" required>
                 <option value="">Pilih Jenis...</option>
                 <option value="Laptop">Laptop</option>
+                <option value="PC">PC</option>
                 <option value="PC Desktop">PC Desktop</option>
                 <option value="Printer">Printer</option>
+                <option value="UPS">UPS</option>
                 <option value="Monitor">Monitor</option>
                 <option value="Scanner">Scanner</option>
                 <option value="Proyektor">Proyektor</option>
@@ -938,14 +1054,30 @@
               </select>
             </div>
             <div class="form-group">
-              <label for="hardware-tahun">Tahun Pengadaan</label>
+              <label for="hardware-tahun">Tahun Perolehan</label>
               <input type="number" id="hardware-tahun" placeholder="2024" min="2000" max="2035">
+            </div>
+            <div class="form-group">
+              <label for="hardware-prosesor">Prosesor <span class="form-optional">(opsional)</span></label>
+              <input type="text" id="hardware-prosesor" placeholder="Contoh: Intel Core i5-1235U">
+            </div>
+            <div class="form-group">
+              <label for="hardware-ram">RAM <span class="form-optional">(opsional)</span></label>
+              <input type="text" id="hardware-ram" placeholder="Contoh: 16 GB DDR4">
+            </div>
+            <div class="form-group">
+              <label for="hardware-penyimpanan">Penyimpanan (HDD / SSD) <span class="form-optional">(opsional)</span></label>
+              <input type="text" id="hardware-penyimpanan" placeholder="Contoh: SSD NVMe 512 GB">
+            </div>
+            <div class="form-group col-span-2">
+              <label for="hardware-keterangan-teknis">Keterangan Teknis</label>
+              <textarea id="hardware-keterangan-teknis" rows="3" placeholder="Catatan kondisi, aksesori, atau informasi teknis lainnya"></textarea>
             </div>
           </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline" data-close="modal-hardware">Batal</button>
-          <button type="submit" class="btn btn-primary">Simpan Perangkat</button>
+          <button type="submit" class="btn btn-primary">Simpan Barang</button>
         </div>
       </form>
     </div>
@@ -1115,6 +1247,84 @@
           <button type="submit" class="btn btn-primary">Simpan Kehadiran</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- MODAL: DETAIL INVENTARIS -->
+  <div id="modal-inventaris-detail" class="modal-overlay">
+    <div class="modal-container inventory-detail-modal">
+      <div class="modal-header">
+        <h3>Detail Aset Inventaris</h3>
+        <button class="modal-close" data-close="modal-inventaris-detail" aria-label="Tutup">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="inventory-detail-grid">
+          <div class="inventory-detail-item">
+            <span>Kode Aset</span>
+            <strong id="inventory-detail-code">-</strong>
+          </div>
+          <div class="inventory-detail-item">
+            <span>Jenis Barang</span>
+            <strong id="inventory-detail-type">-</strong>
+          </div>
+          <div class="inventory-detail-item">
+            <span>Merek &amp; Tipe</span>
+            <strong id="inventory-detail-model">-</strong>
+          </div>
+          <div class="inventory-detail-item">
+            <span>Kondisi</span>
+            <div id="inventory-detail-condition">-</div>
+          </div>
+          <div class="inventory-detail-item">
+            <span>Nama Karyawan / Pemegang</span>
+            <strong id="inventory-detail-holder">-</strong>
+          </div>
+          <div class="inventory-detail-item">
+            <span>NIK / NIP</span>
+            <strong id="inventory-detail-nik">-</strong>
+          </div>
+          <div class="inventory-detail-item">
+            <span>Jabatan</span>
+            <strong id="inventory-detail-position">-</strong>
+          </div>
+          <div class="inventory-detail-item">
+            <span>Lokasi Kerja</span>
+            <strong id="inventory-detail-location">-</strong>
+          </div>
+          <div class="inventory-detail-item">
+            <span>Departemen</span>
+            <strong id="inventory-detail-department">-</strong>
+          </div>
+          <div class="inventory-detail-item">
+            <span>Tahun Perolehan</span>
+            <strong id="inventory-detail-year">-</strong>
+          </div>
+          <div class="inventory-detail-item">
+            <span>Prosesor</span>
+            <strong id="inventory-detail-processor">-</strong>
+          </div>
+          <div class="inventory-detail-item">
+            <span>RAM</span>
+            <strong id="inventory-detail-ram">-</strong>
+          </div>
+          <div class="inventory-detail-item">
+            <span>Penyimpanan (HDD / SSD)</span>
+            <strong id="inventory-detail-storage">-</strong>
+          </div>
+          <div class="inventory-detail-item">
+            <span>Serial Number</span>
+            <strong id="inventory-detail-serial">-</strong>
+          </div>
+          <div class="inventory-detail-item inventory-detail-wide">
+            <span>Keterangan Teknis</span>
+            <p id="inventory-detail-notes">-</p>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" data-close="modal-inventaris-detail">Tutup</button>
+        <button type="button" class="btn btn-primary" id="btn-inventory-detail-qr">Lihat / Cetak QR Code</button>
+      </div>
     </div>
   </div>
 
