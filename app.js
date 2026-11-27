@@ -62,6 +62,16 @@ const USER_PROFILE_BY_EMAIL = {
   'pimpinan@agrinas.co.id': { name: 'Pimpinan', role: 'Pimpinan', initial: 'P' },
   'hrd@agrinas.co.id': { name: 'HRD', role: 'HRD', initial: 'H' }
 };
+const ROLE_USER_KEBUN = 'user_kebun';
+const USER_KEBUN_LABEL = 'User Kebun';
+// Pemetaan awal akun User Kebun -> nama kebun (dapat ditambah lewat Pengaturan oleh Admin)
+const DEFAULT_KEBUN_USERS = {
+  'ledo1@agrinas.co.id': 'Ledo 1',
+  'ledo2@agrinas.co.id': 'Ledo 2',
+  'ledo3@agrinas.co.id': 'Ledo 3'
+};
+const KEBUN_USER_RESTRICTED_VIEWS = ['dashboard', 'kebun', 'pengaturan'];
+const KEBUN_USER_HOME_VIEW = 'inventaris';
 const ACCESS_DENIED_MESSAGE = 'Akses ditolak. Portal ini hanya dapat diakses oleh Admin Agrinas, Pimpinan, HRD, dan Manajer IT.';
 const DEFAULT_IT_SUPPORT_PHONE = '6282138098917';
 const AUDIT_SIGNATURE_ADMIN_KEY = 'agrinas.auditSignature.admin';
@@ -101,6 +111,17 @@ const DEFAULT_NETWORK = [
   { kode: 'IT-FW-005', nama: 'Fortinet FortiGate 60F', kategori: 'Firewall', ip: '192.168.1.253', mac: '90:09:D0:11:22:33', lokasi: 'Rack A - Gateway Boundary', status: 'Maintenance' }
 ];
 
+const DEFAULT_KEBUN = [
+  { kode_kebun: 'LD1', nama_kebun: 'Ledo 1', kategori: 'Kebun' },
+  { kode_kebun: 'LD2', nama_kebun: 'Ledo 2', kategori: 'Kebun' },
+  { kode_kebun: 'LD3', nama_kebun: 'Ledo 3', kategori: 'Kebun' },
+  { kode_kebun: 'CRO', nama_kebun: 'CRO', kategori: 'Kantor' },
+  { kode_kebun: 'DST', nama_kebun: 'Distrik', kategori: 'Kantor' },
+  { kode_kebun: 'RPN', nama_kebun: 'Regional Pontianak', kategori: 'Kantor' },
+  { kode_kebun: 'HO', nama_kebun: 'HO', kategori: 'Kantor' },
+  { kode_kebun: 'PKS', nama_kebun: 'PKS', kategori: 'PKS' }
+];
+
 // =======================================================================
 // 3. STATE & REAL-TIME LISTENERS FIRESTORE
 // =======================================================================
@@ -108,16 +129,30 @@ const State = {
   user: null,
   adminEmails: [ADMIN_EMAIL],
   userRoles: { ...DEFAULT_USER_ROLES },
+  kebunUsers: { ...DEFAULT_KEBUN_USERS },
+  assignedKebun: '',
+  activeRole: '',
   itSupportPhone: DEFAULT_IT_SUPPORT_PHONE,
   karyawan: [],
   hardware: [],
   network: [],
+  kebun: [],
   kendaraan: [],
   kehadiran: [],
   activityLogs: [],
   hardwareLoaded: false,
   networkLoaded: false,
   unsubscribers: []
+};
+
+// Data mentah dari Firestore; State.* berisi data yang sudah dibatasi sesuai role (User Kebun)
+const Raw = {
+  karyawan: [],
+  hardware: [],
+  network: [],
+  kendaraan: [],
+  kehadiran: [],
+  kebun: []
 };
 
 const App = {
@@ -128,6 +163,7 @@ const App = {
   networkStatusFilter: 'all',
   inventoryCategoryFilter: 'all',
   inventorySearchQuery: '',
+  inventoryLocationFilter: 'all',
   expandedHardwareIds: new Set(),
   attendanceDateFilter: '',
   globalKeyword: '',
@@ -162,6 +198,7 @@ const App = {
         loginOverlay.style.display = 'none';
         document.getElementById('login-alert').style.display = 'none';
         this.updateProfileUI(user);
+        this.navigateTo(State.assignedKebun ? KEBUN_USER_HOME_VIEW : 'dashboard');
         await this.seedIfEmpty();
         this.startRealtimeListeners();
       } else {
@@ -229,7 +266,9 @@ const App = {
   updateProfileUI(user) {
     const email = user.email || ADMIN_EMAIL;
     const mappedProfile = USER_PROFILE_BY_EMAIL[email.trim().toLowerCase()];
-    const displayName = mappedProfile ? mappedProfile.name : (user.displayName || 'Admin Agrinas');
+    const displayName = mappedProfile
+      ? mappedProfile.name
+      : (user.displayName || (this.getAssignedKebun(user) ? `User ${this.getAssignedKebun(user)}` : 'Admin Agrinas'));
     const initial = mappedProfile ? mappedProfile.initial : displayName.charAt(0).toUpperCase();
 
     document.getElementById('header-user-avatar').textContent = initial;
@@ -247,10 +286,12 @@ const App = {
     document.getElementById('settings-password').value = '';
     this.updateRoleUI(user);
     this.renderAdminEmailList();
+    this.renderKebunUserList();
   },
 
   updateRoleUI(user) {
     const isAdmin = this.isAdmin(user);
+    const assignedKebun = isAdmin ? '' : this.getAssignedKebun(user);
     const email = user && user.email ? user.email.trim().toLowerCase() : '';
     const roleLabel = (USER_PROFILE_BY_EMAIL[email] && USER_PROFILE_BY_EMAIL[email].role) || this.getUserRole(user);
     const headerRole = document.getElementById('header-user-role');
@@ -260,9 +301,21 @@ const App = {
     headerRole.classList.toggle('role-admin', isAdmin);
     headerRole.classList.toggle('role-viewer', !isAdmin);
     document.body.classList.toggle('role-viewer', !isAdmin);
-    accountRole.textContent = roleLabel;
+    accountRole.textContent = assignedKebun ? `${roleLabel} (${assignedKebun})` : roleLabel;
     accountRole.classList.toggle('badge-success', isAdmin);
     accountRole.classList.toggle('badge-info', !isAdmin);
+
+    // Role & kebun aktif: User Kebun hanya melihat data kebun yang ditetapkan
+    document.body.classList.toggle('role-user-kebun', Boolean(assignedKebun));
+    State.activeRole = isAdmin ? 'admin' : (assignedKebun ? ROLE_USER_KEBUN : 'viewer');
+    if (State.assignedKebun !== assignedKebun) {
+      State.assignedKebun = assignedKebun;
+      this.applyDataScope();
+      this.renderAll();
+    }
+    if (assignedKebun && this.resolveAllowedView(this.currentView) !== this.currentView) {
+      this.navigateTo(KEBUN_USER_HOME_VIEW);
+    }
   },
 
   isAdmin(user = State.user) {
@@ -277,7 +330,64 @@ const App = {
     if (!user || !user.email) return '';
     const email = user.email.trim().toLowerCase();
     if (State.adminEmails.includes(email)) return 'Admin Agrinas';
-    return State.userRoles[email] || '';
+    if (State.userRoles[email]) return State.userRoles[email];
+    return State.kebunUsers[email] ? USER_KEBUN_LABEL : '';
+  },
+
+  // Nama kebun yang ditetapkan untuk akun User Kebun ('' jika bukan User Kebun)
+  getAssignedKebun(user = State.user) {
+    if (!user || !user.email) return '';
+    const email = user.email.trim().toLowerCase();
+    if (State.adminEmails.includes(email) || State.userRoles[email]) return '';
+    return String(State.kebunUsers[email] || '').trim();
+  },
+
+  resolveAllowedView(viewId) {
+    if (State.assignedKebun && KEBUN_USER_RESTRICTED_VIEWS.includes(viewId)) return KEBUN_USER_HOME_VIEW;
+    return viewId;
+  },
+
+  textMentionsKebun(text, kebun) {
+    const target = String(kebun || '').trim().toLowerCase();
+    if (!target) return false;
+    const escaped = target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`(^|[^a-z0-9])${escaped}($|[^a-z0-9])`).test(String(text || '').toLowerCase());
+  },
+
+  // Isi State.* dari Raw.*; User Kebun hanya menerima data kebunnya sendiri
+  applyDataScope() {
+    const kebun = State.assignedKebun;
+    if (!kebun) {
+      State.karyawan = Raw.karyawan;
+      State.hardware = Raw.hardware;
+      State.network = Raw.network;
+      State.kendaraan = Raw.kendaraan;
+      State.kehadiran = Raw.kehadiran;
+      State.kebun = Raw.kebun;
+      return;
+    }
+
+    const norm = value => String(value || '').trim().toLowerCase();
+    const employees = Raw.karyawan.filter(item => norm(item.lokasi) === norm(kebun));
+    const names = new Set(employees.map(item => norm(item.nama)));
+    const ids = new Set(employees.map(item => item.id));
+    State.karyawan = employees;
+    State.hardware = Raw.hardware.filter(item => names.has(norm(item.pemegang)));
+    State.network = Raw.network.filter(item => this.textMentionsKebun(item.lokasi, kebun));
+    State.kendaraan = Raw.kendaraan.filter(item => names.has(norm(item.pemegang)));
+    State.kehadiran = Raw.kehadiran.filter(item => ids.has(item.karyawan_id) || names.has(norm(item.nama_karyawan)));
+    State.kebun = Raw.kebun.filter(item => norm(item.nama_kebun) === norm(kebun));
+  },
+
+  normalizeKebunUsers(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return { ...DEFAULT_KEBUN_USERS };
+    const normalized = {};
+    Object.entries(value).forEach(([email, kebun]) => {
+      const normalizedEmail = String(email).trim().toLowerCase();
+      const kebunName = typeof kebun === 'string' ? kebun.trim() : '';
+      if (normalizedEmail.includes('@') && kebunName) normalized[normalizedEmail] = kebunName;
+    });
+    return normalized;
   },
 
   hasAuthorizedAccess(user = State.user) {
@@ -319,10 +429,12 @@ const App = {
         settings.adminEmails
       );
       State.userRoles = this.normalizeUserRoles(settings.userRoles);
+      State.kebunUsers = this.normalizeKebunUsers(settings.kebunUsers);
     } catch (error) {
       console.error('Gagal membaca daftar akses pengelola dari Firestore:', error);
       State.adminEmails = [ADMIN_EMAIL];
       State.userRoles = { ...DEFAULT_USER_ROLES };
+      State.kebunUsers = { ...DEFAULT_KEBUN_USERS };
     }
   },
 
@@ -424,6 +536,99 @@ const App = {
     }
   },
 
+  // --- AKUN USER KEBUN (PENGATURAN, KHUSUS ADMIN) ---
+  setKebunUserStatus(message, isError = false) {
+    const status = document.getElementById('kebun-user-status');
+    if (!status) return;
+    status.textContent = message;
+    status.classList.toggle('error', isError);
+  },
+
+  populateKebunUserSelect() {
+    const select = document.getElementById('kebun-user-kebun');
+    if (!select) return;
+    const current = select.value;
+    select.innerHTML = '<option value="">Pilih kebun / lokasi...</option>' +
+      State.kebun.map(item => `<option value="${this.escape(item.nama_kebun)}">${this.escape(item.nama_kebun)}${item.kategori ? ` (${this.escape(item.kategori)})` : ''}</option>`).join('');
+    if (current) select.value = current;
+  },
+
+  renderKebunUserList() {
+    const list = document.getElementById('kebun-user-list');
+    if (!list) return;
+    const entries = Object.entries(State.kebunUsers);
+    if (entries.length === 0) {
+      list.innerHTML = '<li class="admin-email-item"><span>Belum ada akun User Kebun.</span></li>';
+    } else {
+      list.innerHTML = entries.map(([email, kebun]) => `
+        <li class="admin-email-item">
+          <span>${this.escape(email)} &rarr; ${this.escape(kebun)}</span>
+          <button type="button" class="btn btn-outline btn-remove-admin" data-remove-kebun-user="${this.escape(email)}">Hapus</button>
+        </li>
+      `).join('');
+    }
+    this.populateKebunUserSelect();
+  },
+
+  async saveKebunUsers(map) {
+    const normalized = this.normalizeKebunUsers(map);
+    await setDoc(doc(db, 'settings', 'roles'), { kebunUsers: normalized }, { merge: true });
+    State.kebunUsers = normalized;
+    this.renderKebunUserList();
+  },
+
+  async addKebunUser(e) {
+    e.preventDefault();
+    if (!this.requireAdmin()) return;
+    const emailInput = document.getElementById('kebun-user-email');
+    const kebunSelect = document.getElementById('kebun-user-kebun');
+    const email = emailInput.value.trim().toLowerCase();
+    const kebun = kebunSelect.value;
+    if (!emailInput.checkValidity()) {
+      emailInput.reportValidity();
+      return;
+    }
+    if (!kebun || !State.kebun.some(item => item.nama_kebun === kebun)) {
+      this.setKebunUserStatus('Pilih kebun / lokasi dari Master Kebun.', true);
+      return;
+    }
+    if (State.adminEmails.includes(email) || State.userRoles[email]) {
+      this.setKebunUserStatus('Email ini sudah terdaftar sebagai Admin / Pimpinan / HRD / Manajer IT.', true);
+      this.showToast('Email sudah terdaftar dengan role lain.', 'warning');
+      return;
+    }
+
+    try {
+      await this.saveKebunUsers({ ...State.kebunUsers, [email]: kebun });
+      emailInput.value = '';
+      kebunSelect.value = '';
+      this.setKebunUserStatus(`Akun ${email} ditetapkan sebagai User Kebun ${kebun}.`);
+      this.showToast('Akun User Kebun berhasil disimpan.');
+    } catch (error) {
+      console.error('Gagal menyimpan akun User Kebun:', error);
+      this.setKebunUserStatus('Gagal menyimpan akun User Kebun. Silakan coba kembali.', true);
+      this.showToast('Gagal menyimpan akun User Kebun.', 'error');
+    }
+  },
+
+  async removeKebunUser(email) {
+    if (!this.requireAdmin()) return;
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+    if (!State.kebunUsers[normalizedEmail]) return;
+    if (!confirm(`Hapus akses User Kebun untuk ${normalizedEmail}?`)) return;
+    const next = { ...State.kebunUsers };
+    delete next[normalizedEmail];
+    try {
+      await this.saveKebunUsers(next);
+      this.setKebunUserStatus(`Akses User Kebun untuk ${normalizedEmail} telah dihapus.`);
+      this.showToast('Akun User Kebun berhasil dihapus.');
+    } catch (error) {
+      console.error('Gagal menghapus akun User Kebun:', error);
+      this.setKebunUserStatus('Gagal menghapus akun User Kebun. Silakan coba kembali.', true);
+      this.showToast('Gagal menghapus akun User Kebun.', 'error');
+    }
+  },
+
   requireAdmin() {
     if (this.isAdmin()) return true;
     alert('Aksi ini hanya tersedia untuk Admin Agrinas.');
@@ -491,6 +696,12 @@ const App = {
           await addDoc(collection(db, 'network'), { ...item, updatedAt: serverTimestamp() });
         }
       }
+      const bSnap = await getDocs(collection(db, 'kebun'));
+      if (bSnap.empty) {
+        for (const item of DEFAULT_KEBUN) {
+          await addDoc(collection(db, 'kebun'), { ...item, updatedAt: serverTimestamp() });
+        }
+      }
     } catch (err) {
       console.error('Gagal melakukan seed awal Firestore:', err);
     }
@@ -498,7 +709,7 @@ const App = {
 
   // --- REAL-TIME FIRESTORE LISTENERS ---
   startRealtimeListeners() {
-    this.stopRealtimeListeners();
+    this.stopRealtimeListeners({ keepAccess: true });
     this.assetDeepLinkHandled = false;
     State.hardwareLoaded = false;
     State.networkLoaded = false;
@@ -508,7 +719,9 @@ const App = {
       const settings = snapshot.exists() ? snapshot.data() : {};
       State.adminEmails = this.normalizeAdminEmails(settings.adminEmails);
       State.userRoles = this.normalizeUserRoles(settings.userRoles);
+      State.kebunUsers = this.normalizeKebunUsers(settings.kebunUsers);
       this.renderAdminEmailList();
+      this.renderKebunUserList();
       if (State.user) {
         if (this.hasAuthorizedAccess(State.user)) this.updateRoleUI(State.user);
         else await this.denyUnauthorizedUser();
@@ -527,36 +740,51 @@ const App = {
     });
 
     const unsubKaryawan = onSnapshot(collection(db, 'karyawan'), (snapshot) => {
-      State.karyawan = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      Raw.karyawan = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      this.applyDataScope();
       this.renderAll();
     });
 
     const unsubHardware = onSnapshot(collection(db, 'hardware'), (snapshot) => {
-      State.hardware = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      Raw.hardware = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      this.applyDataScope();
       State.hardwareLoaded = true;
       this.renderAll();
       this.resolveAssetDeepLink();
     });
 
     const unsubNetwork = onSnapshot(collection(db, 'network'), (snapshot) => {
-      State.network = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      Raw.network = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      this.applyDataScope();
       State.networkLoaded = true;
       this.renderAll();
       this.resolveAssetDeepLink();
     });
 
     const unsubKendaraan = onSnapshot(collection(db, 'kendaraan'), (snapshot) => {
-      State.kendaraan = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      Raw.kendaraan = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      this.applyDataScope();
       this.renderAll();
     }, (error) => {
       console.error('Gagal menyinkronkan data kendaraan:', error);
     });
 
     const unsubKehadiran = onSnapshot(collection(db, 'kehadiran'), (snapshot) => {
-      State.kehadiran = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      Raw.kehadiran = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      this.applyDataScope();
       this.renderAll();
     }, (error) => {
       console.error('Gagal menyinkronkan data kehadiran:', error);
+    });
+
+    const unsubKebun = onSnapshot(collection(db, 'kebun'), (snapshot) => {
+      Raw.kebun = snapshot.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => String(a.nama_kebun || '').localeCompare(String(b.nama_kebun || ''), 'id', { numeric: true }));
+      this.applyDataScope();
+      this.renderAll();
+    }, (error) => {
+      console.error('Gagal menyinkronkan data kebun:', error);
     });
 
     const activityQuery = query(
@@ -564,7 +792,7 @@ const App = {
       orderBy('timestamp', 'desc'),
       limit(8)
     );
-    const unsubActivityLogs = onSnapshot(activityQuery, (snapshot) => {
+    const unsubActivityLogs = State.assignedKebun ? null : onSnapshot(activityQuery, (snapshot) => {
       State.activityLogs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       this.renderDashboard();
       this.renderDataUpdateStamp();
@@ -580,26 +808,42 @@ const App = {
       unsubNetwork,
       unsubKendaraan,
       unsubKehadiran,
+      unsubKebun,
       unsubActivityLogs
-    ];
+    ].filter(Boolean);
   },
 
-  stopRealtimeListeners() {
+  stopRealtimeListeners(options = {}) {
     State.unsubscribers.forEach(unsub => unsub());
     State.unsubscribers = [];
-    this.resetSessionData();
+    this.resetSessionData(options);
   },
 
-  // Bersihkan seluruh data sesi (State, pencarian, baris yang terbuka)
-  resetSessionData() {
+  // Bersihkan seluruh data sesi (State, pencarian, baris yang terbuka).
+  // keepAccess=true dipakai saat memulai listener setelah login agar role/kebun aktif tidak terhapus.
+  resetSessionData(options = {}) {
+    Raw.karyawan = [];
+    Raw.hardware = [];
+    Raw.network = [];
+    Raw.kendaraan = [];
+    Raw.kehadiran = [];
+    Raw.kebun = [];
+    if (!options.keepAccess) {
+      State.assignedKebun = '';
+      State.activeRole = '';
+      State.kebunUsers = { ...DEFAULT_KEBUN_USERS };
+      document.body.classList.remove('role-user-kebun');
+    }
     State.karyawan = [];
     State.hardware = [];
     State.network = [];
     State.kendaraan = [];
     State.kehadiran = [];
+    State.kebun = [];
     State.activityLogs = [];
     State.hardwareLoaded = false;
     State.networkLoaded = false;
+    this.inventoryLocationFilter = 'all';
     this.clearGlobalSearch();
     this.expandedHardwareIds.clear();
     this.expandedKaryawanIds.clear();
@@ -615,6 +859,7 @@ const App = {
 
   // --- SPA NAVIGATION ---
   navigateTo(viewId, options = {}) {
+    viewId = this.resolveAllowedView(viewId);
     this.currentView = viewId;
     if (!options.keepSearch) this.clearGlobalSearch();
     const targetView = document.getElementById(`view-${viewId}`);
@@ -641,6 +886,7 @@ const App = {
       dashboard: { main: 'Dashboard Utama Aset', sub: 'RINGKASAN SISTEM & STATISTIK' },
       karyawan: { main: 'Master Karyawan', sub: 'DAFTAR PEGAWAI & PEMEGANG ASET' },
       hardware: { main: 'Master Barang', sub: 'DAFTAR BARANG & SPESIFIKASI TEKNIS' },
+      kebun: { main: 'Master Kebun', sub: 'DAFTAR KEBUN, PKS & LOKASI KERJA' },
       inventaris: { main: 'Data Inventaris', sub: 'REKAP BARANG & PEMEGANG INVENTARIS' },
       network: { main: 'Network & Server', sub: 'INFRASTRUKTUR JARINGAN & SERVER' },
       kendaraan: { main: 'Kendaraan Operasional', sub: 'INVENTARIS DAN STATUS KENDARAAN' },
@@ -662,6 +908,7 @@ const App = {
       case 'dashboard': this.renderDashboard(); break;
       case 'karyawan': this.renderKaryawanTable(); break;
       case 'hardware': this.renderHardwareTable(); break;
+      case 'kebun': this.renderKebunTable(); break;
       case 'inventaris': this.renderDataInventarisTable(); break;
       case 'network': this.renderNetworkTable(); break;
       case 'kendaraan': this.renderKendaraanTable(); break;
@@ -674,6 +921,7 @@ const App = {
     this.renderDashboard();
     this.renderKaryawanTable();
     this.renderHardwareTable();
+    this.renderKebunTable();
     this.renderDataInventarisTable();
     this.renderNetworkTable();
     this.renderKendaraanTable();
@@ -795,7 +1043,8 @@ const App = {
       hardware: 'Hardware',
       network: 'Network & Server',
       kendaraan: 'Kendaraan',
-      kehadiran: 'Kehadiran'
+      kehadiran: 'Kehadiran',
+      kebun: 'Kebun'
     };
     activitiesHtml += '<h3 class="activity-log-heading">Riwayat Perubahan Data</h3>';
     if (State.activityLogs.length === 0) {
@@ -826,8 +1075,13 @@ const App = {
     return karyawan.departemen || karyawan.divisi || '-';
   },
 
-  getKaryawanInventoryBadge(status) {
+  getKaryawanInventoryBadge(status, karyawan = null) {
     if (status === 'Ada') {
+      // Di detail baris Master Karyawan, badge "Ada" berupa tombol yang membuka modal aset
+      if (karyawan && karyawan.id) {
+        const label = this.escape(karyawan.nama || 'karyawan');
+        return `<button type="button" class="badge-inventory-status has-inventory is-clickable" data-karyawan-action="view-assets" data-id="${this.escape(karyawan.id)}" title="Klik untuk melihat detail aset" aria-label="Lihat detail aset IT ${label}">Ada <svg aria-hidden="true" focusable="false" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5M12 8h.01"></path></svg></button>`;
+      }
       return '<span class="badge-inventory-status has-inventory">Ada</span>';
     }
     if (status === 'Tidak') {
@@ -892,7 +1146,7 @@ const App = {
         </div>
         <div class="employee-expanded-item">
           <span>Status Inventaris IT</span>
-          <div>${this.getKaryawanInventoryBadge(karyawan.statusInventaris)}</div>
+          <div>${this.getKaryawanInventoryBadge(karyawan.statusInventaris, karyawan)}</div>
         </div>
         <div class="employee-expanded-item employee-expanded-item--wide">
           <span>Penjelasan Inventaris IT</span>
@@ -967,6 +1221,7 @@ const App = {
     const title = document.getElementById('modal-karyawan-title');
     const form = document.getElementById('form-karyawan');
     form.reset();
+    this.populateKaryawanLokasiDropdown(karyawan ? karyawan.lokasi : '');
 
     if (karyawan) {
       title.textContent = 'Edit Master Karyawan';
@@ -1068,6 +1323,60 @@ const App = {
     this.renderKaryawanTable();
   },
 
+  showKaryawanAssets(id) {
+    const karyawan = State.karyawan.find(item => item.id === id);
+    if (!karyawan) {
+      this.showToast('Data karyawan tidak ditemukan.', 'warning');
+      return;
+    }
+
+    const norm = value => String(value || '').trim().toLowerCase();
+    const holder = norm(karyawan.nama);
+    const hardwareAssets = State.hardware
+      .filter(item => norm(item.pemegang) === holder)
+      .map(item => ({
+        kode: item.kode,
+        jenis: this.getHardwareCategory(item),
+        merek: item.merek,
+        status: item.status,
+        catatan: [item.prosesor, item.ram, item.penyimpanan, item.keterangan_teknis]
+          .map(value => String(value || '').trim()).filter(Boolean).join(' • ')
+      }));
+    const networkAssets = State.network
+      .filter(item => norm(item.pemegang) === holder)
+      .map(item => ({
+        kode: item.kode,
+        jenis: item.kategori,
+        merek: item.nama,
+        status: item.status,
+        catatan: [item.ip && item.ip !== '-' ? `IP ${item.ip}` : '', item.lokasi]
+          .filter(Boolean).join(' • ')
+      }));
+    const assets = [...hardwareAssets, ...networkAssets];
+
+    document.getElementById('karyawan-assets-name').textContent = karyawan.nama || '-';
+    document.getElementById('karyawan-assets-nik').textContent = karyawan.nik || '-';
+    document.getElementById('karyawan-assets-jabatan').textContent = karyawan.jabatan || '-';
+    document.getElementById('karyawan-assets-lokasi').textContent = karyawan.lokasi || '-';
+    document.getElementById('karyawan-assets-count').textContent = `${assets.length} perangkat tercatat`;
+
+    const tbody = document.getElementById('karyawan-assets-body');
+    if (assets.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="text-center" style="padding: 20px; color: var(--text-muted);">Belum ada perangkat IT yang tercatat atas nama karyawan ini di Master Barang.</td></tr>';
+    } else {
+      tbody.innerHTML = assets.map(asset => `
+        <tr>
+          <td><span class="asset-tag">${this.escape(asset.kode || '-')}</span></td>
+          <td><strong>${this.escape(asset.jenis || '-')}</strong></td>
+          <td>${this.escape(asset.merek || '-')}</td>
+          <td>${this.getStatusBadge(asset.status || '-')}</td>
+          <td class="karyawan-assets-note">${this.escape(asset.catatan || '-')}</td>
+        </tr>
+      `).join('');
+    }
+    this.openModal('modal-karyawan-assets');
+  },
+
   showKaryawanDetail(id) {
     const karyawan = State.karyawan.find(item => item.id === id);
     if (!karyawan) return;
@@ -1131,6 +1440,153 @@ const App = {
       } catch (err) {
         this.showToast('Gagal menghapus karyawan: ' + getUserFacingError(err), 'error');
       }
+    }
+  },
+
+  // --- CRUD: MASTER KEBUN ---
+  getKebunCategoryBadge(kategori) {
+    let style = 'badge-info';
+    if (kategori === 'Kebun') style = 'badge-success';
+    if (kategori === 'PKS') style = 'badge-warning';
+    return `<span class="badge ${style}">${this.escape(kategori || '-')}</span>`;
+  },
+
+  countKaryawanAtLocation(namaKebun) {
+    const target = String(namaKebun || '').trim().toLowerCase();
+    if (!target) return 0;
+    return State.karyawan.filter(k => String(k.lokasi || '').trim().toLowerCase() === target).length;
+  },
+
+  populateKaryawanLokasiDropdown(selectedLokasi = '') {
+    const select = document.getElementById('karyawan-lokasi');
+    let options = '<option value="">Pilih lokasi kerja...</option>';
+    options += State.kebun.map(k => `<option value="${this.escape(k.nama_kebun)}">${this.escape(k.nama_kebun)}${k.kategori ? ` (${this.escape(k.kategori)})` : ''}</option>`).join('');
+    const selected = String(selectedLokasi || '').trim();
+    if (selected && !State.kebun.some(k => String(k.nama_kebun || '').trim().toLowerCase() === selected.toLowerCase())) {
+      options += `<option value="${this.escape(selected)}">${this.escape(selected)} (belum ada di Master Kebun)</option>`;
+    }
+    select.innerHTML = options;
+  },
+
+  renderKebunTable() {
+    const tbody = document.getElementById('table-kebun-body');
+    if (!tbody) return;
+    this.populateKebunUserSelect();
+    const keyword = this.globalKeyword.toLowerCase().trim();
+    const filtered = State.kebun.filter(item =>
+      [item.kode_kebun, item.nama_kebun, item.kategori]
+        .some(value => String(value || '').toLowerCase().includes(keyword))
+    );
+
+    document.getElementById('showing-kebun').textContent =
+      `Menampilkan ${filtered.length} dari ${State.kebun.length} kebun / lokasi`;
+
+    if (filtered.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center" style="padding: 24px; color: var(--text-muted);">Tidak ada data kebun / lokasi yang cocok.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = filtered.map((item, index) => `
+      <tr>
+        <td>${index + 1}</td>
+        <td><span class="asset-tag">${this.escape(item.kode_kebun || '-')}</span></td>
+        <td><strong>${this.escape(item.nama_kebun || '-')}</strong></td>
+        <td>${this.getKebunCategoryBadge(item.kategori)}</td>
+        <td>${this.countKaryawanAtLocation(item.nama_kebun)}</td>
+        <td style="text-align: center;">
+          <div class="action-buttons" style="justify-content: center;">
+            <button type="button" class="btn-icon edit" title="Edit Kebun" aria-label="Edit ${this.escape(item.nama_kebun)}" data-kebun-action="edit" data-id="${this.escape(item.id)}">${this.actionIcon('edit')}</button>
+            <button type="button" class="btn-icon delete" title="Hapus Kebun" aria-label="Hapus ${this.escape(item.nama_kebun)}" data-kebun-action="delete" data-id="${this.escape(item.id)}">${this.actionIcon('delete')}</button>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+  },
+
+  openKebunModal(kebun = null) {
+    if (!this.requireAdmin()) return;
+    document.getElementById('form-kebun').reset();
+    document.getElementById('modal-kebun-title').textContent = kebun ? 'Edit Kebun / Lokasi' : 'Tambah Kebun / Lokasi';
+    document.getElementById('kebun-id').value = kebun ? kebun.id : '';
+    document.getElementById('kebun-kode').value = kebun ? kebun.kode_kebun || '' : '';
+    document.getElementById('kebun-nama').value = kebun ? kebun.nama_kebun || '' : '';
+    document.getElementById('kebun-kategori').value = kebun ? kebun.kategori || '' : '';
+    this.openModal('modal-kebun');
+  },
+
+  async saveKebun(e) {
+    e.preventDefault();
+    if (!this.requireAdmin()) return;
+    const id = document.getElementById('kebun-id').value;
+    const payload = {
+      kode_kebun: document.getElementById('kebun-kode').value.trim().toUpperCase(),
+      nama_kebun: document.getElementById('kebun-nama').value.trim(),
+      kategori: document.getElementById('kebun-kategori').value,
+      updatedAt: serverTimestamp()
+    };
+    if (!payload.kode_kebun || !payload.nama_kebun || !payload.kategori) {
+      this.showToast('Kode, nama, dan kategori wajib diisi.', 'warning');
+      return;
+    }
+
+    const norm = value => String(value || '').trim().toLowerCase();
+    const others = State.kebun.filter(item => item.id !== id);
+    if (others.some(item => norm(item.kode_kebun) === norm(payload.kode_kebun))) {
+      this.showToast(`Kode "${payload.kode_kebun}" sudah digunakan. Gunakan kode yang berbeda.`, 'warning');
+      return;
+    }
+    if (others.some(item => norm(item.nama_kebun) === norm(payload.nama_kebun))) {
+      this.showToast(`Nama "${payload.nama_kebun}" sudah terdaftar di Master Kebun.`, 'warning');
+      return;
+    }
+
+    try {
+      if (id) {
+        const oldItem = State.kebun.find(item => item.id === id);
+        await updateDoc(doc(db, 'kebun', id), payload);
+        if (oldItem && norm(oldItem.nama_kebun) !== norm(payload.nama_kebun)) {
+          const affected = State.karyawan.filter(k => norm(k.lokasi) === norm(oldItem.nama_kebun));
+          for (const employee of affected) {
+            await updateDoc(doc(db, 'karyawan', employee.id), {
+              lokasi: payload.nama_kebun,
+              updatedAt: serverTimestamp()
+            });
+          }
+        }
+      } else {
+        await addDoc(collection(db, 'kebun'), payload);
+      }
+      await this.logActivity(id ? 'Edit' : 'Tambah', 'kebun', `${payload.kode_kebun} - ${payload.nama_kebun}`);
+      this.closeModal('modal-kebun');
+      this.showToast(id ? 'Data kebun berhasil diperbarui.' : 'Data kebun berhasil disimpan.');
+    } catch (err) {
+      this.showToast('Gagal menyimpan data kebun: ' + getUserFacingError(err), 'error');
+    }
+  },
+
+  editKebun(id) {
+    const item = State.kebun.find(kebun => kebun.id === id);
+    if (item) this.openKebunModal(item);
+  },
+
+  async deleteKebun(id) {
+    if (!this.requireAdmin()) return;
+    const item = State.kebun.find(kebun => kebun.id === id);
+    if (!item) {
+      this.showToast('Data kebun tidak ditemukan.', 'warning');
+      return;
+    }
+    const used = this.countKaryawanAtLocation(item.nama_kebun);
+    const warning = used > 0
+      ? `\n\n${used} karyawan masih memakai lokasi ini. Nama lokasi pada data karyawan tetap tersimpan, tetapi tidak lagi muncul di pilihan.`
+      : '';
+    if (!confirm(`Yakin ingin menghapus kebun / lokasi "${item.nama_kebun}"?${warning}`)) return;
+    try {
+      await deleteDoc(doc(db, 'kebun', id));
+      await this.logActivity('Hapus', 'kebun', `${item.kode_kebun || '-'} - ${item.nama_kebun}`);
+      this.showToast('Data kebun berhasil dihapus.');
+    } catch (err) {
+      this.showToast('Gagal menghapus data kebun: ' + getUserFacingError(err), 'error');
     }
   },
 
@@ -1401,20 +1857,44 @@ const App = {
     }
   },
 
+  renderInventoryLocationTabs() {
+    const container = document.getElementById('inventory-location-tabs');
+    if (!container) return;
+    if (State.assignedKebun) {
+      // User Kebun: filter terkunci ke kebunnya sendiri
+      const lockedName = this.escape(State.assignedKebun);
+      this.inventoryLocationFilter = State.assignedKebun;
+      container.innerHTML = `<button type="button" class="filter-tab active" data-location="${lockedName}" aria-pressed="true" disabled>${lockedName}</button>`;
+      return;
+    }
+    const names = State.kebun.map(item => item.nama_kebun).filter(Boolean);
+    if (this.inventoryLocationFilter !== 'all' && !names.includes(this.inventoryLocationFilter)) {
+      this.inventoryLocationFilter = 'all';
+    }
+    container.innerHTML = ['all', ...names].map(name => {
+      const active = this.inventoryLocationFilter === name;
+      return `<button type="button" class="filter-tab${active ? ' active' : ''}" data-location="${this.escape(name)}" aria-pressed="${active}">${name === 'all' ? 'Semua' : this.escape(name)}</button>`;
+    }).join('');
+  },
+
   renderDataInventarisTable() {
+    this.renderInventoryLocationTabs();
     const tbody = document.getElementById('table-inventaris-body');
     const keyword = this.inventorySearchQuery.trim().toLowerCase();
     const category = this.inventoryCategoryFilter;
+    const locationFilter = String(State.assignedKebun || this.inventoryLocationFilter || 'all').trim().toLowerCase();
     const filtered = State.hardware.filter(item => {
       const employee = this.findHardwareEmployee(item);
+      const matchLocation = locationFilter === 'all' ||
+        String(employee && employee.lokasi || '').trim().toLowerCase() === locationFilter;
       const matchCategory = category === 'all' || this.getHardwareCategory(item).toLowerCase() === category.toLowerCase();
       const searchable = [
         item.kode, item.jenis, item.merek, item.pemegang,
         item.prosesor, item.ram, item.penyimpanan, item.keterangan_teknis,
         employee && employee.nama, employee && employee.lokasi,
-        employee && this.getKaryawanDepartemen(employee)
+        employee && employee.jabatan
       ];
-      return matchCategory && searchable.some(value => String(value || '').toLowerCase().includes(keyword));
+      return matchLocation && matchCategory && searchable.some(value => String(value || '').toLowerCase().includes(keyword));
     });
 
     document.getElementById('showing-inventaris').textContent =
@@ -1432,7 +1912,7 @@ const App = {
           <td><span class="asset-tag">${this.escape(item.kode || '-')}</span></td>
           <td><strong>${this.escape(item.pemegang || '-')}</strong></td>
           <td>${this.escape(employee && employee.lokasi || '-')}</td>
-          <td>${this.escape(employee ? this.getKaryawanDepartemen(employee) : '-')}</td>
+          <td>${this.escape(employee && employee.jabatan || '-')}</td>
           <td class="inventory-item-name">${this.escape(this.getHardwareCategory(item))} ${this.escape(item.merek || '')}</td>
           <td>${this.getStatusBadge(item.status)}</td>
           <td class="inventory-actions-cell">
@@ -2239,6 +2719,7 @@ const App = {
   },
 
   backupDatabase() {
+    if (!this.requireAdmin()) return;
     const json = JSON.stringify({
       version: '2.0-firebase',
       exportedAt: new Date().toISOString(),
@@ -2246,7 +2727,8 @@ const App = {
       hardware: State.hardware,
       network: State.network,
       kendaraan: State.kendaraan,
-      kehadiran: State.kehadiran
+      kehadiran: State.kehadiran,
+      kebun: State.kebun
     }, null, 2);
 
     const date = new Date().toISOString().slice(0, 10);
@@ -2280,7 +2762,7 @@ const App = {
       try {
         const data = JSON.parse(e.target.result);
         if (!this.requireAdmin()) return;
-        const collectionNames = ['karyawan', 'hardware', 'network', 'kendaraan', 'kehadiran'];
+        const collectionNames = ['karyawan', 'hardware', 'network', 'kendaraan', 'kehadiran', 'kebun'];
         if (!data || typeof data !== 'object' || Array.isArray(data) ||
             !collectionNames.some(name => Array.isArray(data[name]))) {
           throw new Error('Struktur file cadangan tidak valid.');
@@ -2293,12 +2775,14 @@ const App = {
           hardware: assetCodes,
           network: assetCodes,
           kendaraan: new Set(State.kendaraan.map(i => norm(i.no_polisi)).filter(Boolean)),
-          kehadiran: new Set(State.kehadiran.map(i => `${norm(i.tanggal)}|${norm(i.nik_karyawan)}`))
+          kehadiran: new Set(State.kehadiran.map(i => `${norm(i.tanggal)}|${norm(i.nik_karyawan)}`)),
+          kebun: new Set(State.kebun.map(i => norm(i.kode_kebun)).filter(Boolean))
         };
         const keyOf = (name, item) => {
           if (name === 'karyawan') return norm(item.nik);
           if (name === 'hardware' || name === 'network') return norm(item.kode);
           if (name === 'kendaraan') return norm(item.no_polisi);
+          if (name === 'kebun') return norm(item.kode_kebun);
           return `${norm(item.tanggal)}|${norm(item.nik_karyawan)}`;
         };
 
@@ -2807,6 +3291,11 @@ const App = {
     });
 
     document.getElementById('form-admin-access').addEventListener('submit', (e) => this.addAdminEmail(e));
+    document.getElementById('form-kebun-user').addEventListener('submit', (e) => this.addKebunUser(e));
+    document.getElementById('kebun-user-list').addEventListener('click', (e) => {
+      const removeButton = e.target.closest('[data-remove-kebun-user]');
+      if (removeButton) this.removeKebunUser(removeButton.dataset.removeKebunUser);
+    });
     document.getElementById('admin-email-list').addEventListener('click', (e) => {
       const removeButton = e.target.closest('[data-remove-admin]');
       if (removeButton) this.removeAdminEmail(removeButton.dataset.removeAdmin);
@@ -2984,6 +3473,22 @@ const App = {
       if (action === 'qr') this.openAssetQr('network', id);
     });
 
+    document.getElementById('table-kebun-body').addEventListener('click', (e) => {
+      const button = e.target.closest('[data-kebun-action]');
+      if (!button) return;
+      const { id } = button.dataset;
+      const action = button.dataset.kebunAction;
+      if (action === 'edit') this.editKebun(id);
+      if (action === 'delete') this.deleteKebun(id);
+    });
+
+    document.getElementById('inventory-location-tabs').addEventListener('click', (e) => {
+      const tab = e.target.closest('[data-location]');
+      if (!tab || State.assignedKebun) return;
+      this.inventoryLocationFilter = tab.dataset.location;
+      this.renderDataInventarisTable();
+    });
+
     document.getElementById('table-kendaraan-body').addEventListener('click', (e) => {
       const button = e.target.closest('[data-kendaraan-action]');
       if (!button) return;
@@ -3016,6 +3521,11 @@ const App = {
         this.toggleKaryawanRow(id);
         return;
       }
+      if (action === 'view-assets') {
+        e.stopPropagation();
+        this.showKaryawanAssets(id);
+        return;
+      }
       if (action === 'detail') this.showKaryawanDetail(id);
       if (action === 'edit') this.editKaryawan(id);
       if (action === 'delete') this.deleteKaryawan(id);
@@ -3033,6 +3543,7 @@ const App = {
     document.getElementById('form-network').addEventListener('submit', (e) => this.saveNetwork(e));
     document.getElementById('form-kendaraan').addEventListener('submit', (e) => this.saveKendaraan(e));
     document.getElementById('form-kehadiran').addEventListener('submit', (e) => this.saveKehadiran(e));
+    document.getElementById('form-kebun').addEventListener('submit', (e) => this.saveKebun(e));
     document.getElementById('form-update-profile').addEventListener('submit', (e) => this.saveProfile(e));
     document.getElementById('form-audit-signatures').addEventListener('submit', (e) => this.saveAuditSignatures(e));
     document.getElementById('form-it-support-settings').addEventListener('submit', (e) => this.saveItSupportSettings(e));
@@ -3051,6 +3562,7 @@ const App = {
     document.getElementById('btn-tambah-network').addEventListener('click', () => this.openNetworkModal());
     document.getElementById('btn-tambah-kendaraan').addEventListener('click', () => this.openKendaraanModal());
     document.getElementById('btn-tambah-kehadiran').addEventListener('click', () => this.openKehadiranModal());
+    document.getElementById('btn-tambah-kebun').addEventListener('click', () => this.openKebunModal());
   }
 };
 

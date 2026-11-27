@@ -142,6 +142,14 @@
         </svg>
         <span>Master Barang</span>
       </a>
+      <a href="#kebun" class="nav-link" data-view="kebun">
+        <svg class="nav-icon" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22V12"></path>
+          <path d="M12 12c0-4 3-7 8-7 0 5-3 8-8 8"></path>
+          <path d="M12 15c0-3-2-5-6-5 0 4 2 6 6 6"></path>
+        </svg>
+        <span>Master Kebun</span>
+      </a>
       <a href="#inventaris" class="nav-link" data-view="inventaris">
         <svg class="nav-icon" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
           <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v17H6.5A2.5 2.5 0 0 1 4 17.5z"></path>
@@ -452,6 +460,37 @@
         </div>
       </div>
 
+      <!-- ==================== VIEW: MASTER KEBUN ==================== -->
+      <div id="view-kebun" class="view-section">
+        <div class="section-header">
+          <h2>Master Kebun</h2>
+          <div class="section-actions">
+            <button class="btn btn-primary" id="btn-tambah-kebun" data-admin-only>+ Tambah Kebun / Lokasi</button>
+          </div>
+        </div>
+
+        <div class="table-wrapper">
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>No</th>
+                  <th>Kode</th>
+                  <th>Nama Kebun / Lokasi</th>
+                  <th>Kategori</th>
+                  <th>Jumlah Karyawan</th>
+                  <th style="text-align: center;">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="table-kebun-body"></tbody>
+            </table>
+          </div>
+          <div class="table-footer">
+            <div class="showing" id="showing-kebun">Menampilkan 0 data</div>
+          </div>
+        </div>
+      </div>
+
       <!-- ==================== VIEW: DATA INVENTARIS ==================== -->
       <div id="view-inventaris" class="view-section">
         <div class="section-header inventory-view-header">
@@ -463,7 +502,7 @@
                 <circle cx="11" cy="11" r="7"></circle>
                 <path d="m20 20-4-4"></path>
               </svg>
-              <input type="search" id="inventory-search-input" placeholder="Cari nama, kode aset, barang, lokasi, departemen..." autocomplete="off">
+              <input type="search" id="inventory-search-input" placeholder="Cari nama, kode aset, inventaris, lokasi, jabatan..." autocomplete="off">
             </label>
             <label class="inventory-category-control">
               <span class="sr-only">Filter kategori inventaris</span>
@@ -476,6 +515,11 @@
               </select>
             </label>
           </div>
+        </div>
+
+        <div class="inventory-location-bar">
+          <span class="inventory-location-label" id="inventory-location-label">Pilih Kebun / PKS / Lokasi</span>
+          <div class="filter-tabs inventory-location-tabs" id="inventory-location-tabs" role="group" aria-labelledby="inventory-location-label"></div>
         </div>
 
         <div class="table-wrapper inventory-table-wrapper">
@@ -495,8 +539,8 @@
                   <th>Kode Aset</th>
                   <th>Nama Karyawan / Pemegang</th>
                   <th>Lokasi Kerja</th>
-                  <th>Departemen</th>
-                  <th>Barang &amp; Tipe</th>
+                  <th>Jabatan</th>
+                  <th>Inventaris IT</th>
                   <th>Kondisi</th>
                   <th>Aksi</th>
                 </tr>
@@ -757,6 +801,24 @@
             </form>
           </div>
 
+          <div class="settings-card" id="kebun-user-card" data-admin-only>
+            <h3>Akun User Kebun</h3>
+            <p class="settings-desc">User Kebun hanya melihat data kebun / lokasi yang ditetapkan. Akun login tetap harus dibuat di Firebase Authentication, lalu daftarkan emailnya di sini. Pilihan kebun mengikuti Master Kebun, jadi kebun baru otomatis tersedia.</p>
+            <ul id="kebun-user-list" class="admin-email-list" aria-label="Daftar akun User Kebun"></ul>
+            <form id="form-kebun-user">
+              <div class="form-group" style="margin-bottom: 12px;">
+                <label for="kebun-user-email">Email User Kebun</label>
+                <input type="email" id="kebun-user-email" required placeholder="contoh: ledo1@agrinas.co.id" autocomplete="off">
+              </div>
+              <div class="form-group" style="margin-bottom: 12px;">
+                <label for="kebun-user-kebun">Kebun / Lokasi</label>
+                <select id="kebun-user-kebun" required></select>
+              </div>
+              <button type="submit" class="btn btn-primary">Simpan Akun User Kebun</button>
+              <p id="kebun-user-status" class="admin-access-status" role="status" aria-live="polite"></p>
+            </form>
+          </div>
+
           <div class="settings-card">
             <h3>Pengaturan Penanda Tangan Laporan Audit</h3>
             <p class="settings-desc">Nama ini akan tampil pada kolom tanda tangan laporan audit dan tersimpan di browser ini.</p>
@@ -875,14 +937,7 @@
             </div>
             <div class="form-group">
               <label for="karyawan-lokasi">Lokasi Kerja</label>
-              <input type="text" id="karyawan-lokasi" list="karyawan-lokasi-options" placeholder="Pilih atau ketik lokasi kerja">
-              <datalist id="karyawan-lokasi-options">
-                <option value="HO"></option>
-                <option value="CRO"></option>
-                <option value="Distrik"></option>
-                <option value="KBL"></option>
-                <option value="Regional Pontianak"></option>
-              </datalist>
+              <select id="karyawan-lokasi"></select>
             </div>
             <div class="form-group col-span-2">
               <label for="karyawan-status-karyawan">Status Karyawan (Entitas / Asal) <span style="color:var(--danger)">*</span></label>
@@ -1139,6 +1194,92 @@
         <div class="modal-footer">
           <button type="button" class="btn btn-outline" data-close="modal-network">Batal</button>
           <button type="submit" class="btn btn-primary">Simpan Perangkat</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: ASET IT KARYAWAN -->
+  <div id="modal-karyawan-assets" class="modal-overlay">
+    <div class="modal-container modal-lg">
+      <div class="modal-header">
+        <h3>Inventaris IT Karyawan</h3>
+        <button class="modal-close" data-close="modal-karyawan-assets" aria-label="Tutup">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="karyawan-assets-meta">
+          <div class="karyawan-assets-meta-item">
+            <span>Nama Karyawan</span>
+            <strong id="karyawan-assets-name">-</strong>
+          </div>
+          <div class="karyawan-assets-meta-item">
+            <span>NIK / NIP</span>
+            <strong id="karyawan-assets-nik">-</strong>
+          </div>
+          <div class="karyawan-assets-meta-item">
+            <span>Jabatan</span>
+            <strong id="karyawan-assets-jabatan">-</strong>
+          </div>
+          <div class="karyawan-assets-meta-item">
+            <span>Lokasi Kerja</span>
+            <strong id="karyawan-assets-lokasi">-</strong>
+          </div>
+        </div>
+        <p class="karyawan-assets-count" id="karyawan-assets-count">0 perangkat tercatat</p>
+        <div class="karyawan-assets-table-wrap">
+          <table class="karyawan-assets-table">
+            <thead>
+              <tr>
+                <th>Kode Aset</th>
+                <th>Jenis Perangkat</th>
+                <th>Merek &amp; Tipe</th>
+                <th>Kondisi</th>
+                <th>Spesifikasi / Catatan</th>
+              </tr>
+            </thead>
+            <tbody id="karyawan-assets-body"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" data-close="modal-karyawan-assets">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: MASTER KEBUN -->
+  <div id="modal-kebun" class="modal-overlay">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3 id="modal-kebun-title">Tambah Kebun / Lokasi</h3>
+        <button class="modal-close" data-close="modal-kebun">&times;</button>
+      </div>
+      <form id="form-kebun">
+        <input type="hidden" id="kebun-id">
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="kebun-kode">Kode Kebun / Lokasi <span style="color:var(--danger)">*</span></label>
+              <input type="text" id="kebun-kode" required placeholder="Contoh: LD1">
+            </div>
+            <div class="form-group">
+              <label for="kebun-kategori">Kategori <span style="color:var(--danger)">*</span></label>
+              <select id="kebun-kategori" required>
+                <option value="">Pilih kategori...</option>
+                <option value="Kebun">Kebun</option>
+                <option value="PKS">PKS</option>
+                <option value="Kantor">Kantor</option>
+              </select>
+            </div>
+            <div class="form-group col-span-2">
+              <label for="kebun-nama">Nama Kebun / Lokasi <span style="color:var(--danger)">*</span></label>
+              <input type="text" id="kebun-nama" required placeholder="Contoh: Ledo 1">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" data-close="modal-kebun">Batal</button>
+          <button type="submit" class="btn btn-primary">Simpan</button>
         </div>
       </form>
     </div>
