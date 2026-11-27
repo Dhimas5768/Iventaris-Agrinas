@@ -465,6 +465,102 @@ body.role-viewer .btn-icon.delete {
   display: none !important;
 }
 
+/* User Kebun: menu Dashboard, Master Kebun, dan Pengaturan disembunyikan */
+body.role-user-kebun .sidebar-nav .nav-link[data-view="dashboard"],
+body.role-user-kebun .sidebar-nav .nav-link[data-view="kebun"],
+body.role-user-kebun .sidebar-nav .nav-link[data-view="pengaturan"],
+body.role-user-kebun #btn-nav-settings {
+  display: none !important;
+}
+
+.filter-tab:disabled {
+  cursor: default;
+}
+
+/* Badge "Ada" pada detail Master Karyawan (tombol pembuka modal aset) */
+button.badge-inventory-status.is-clickable {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  font-family: inherit;
+  border: 1px solid currentColor;
+  transition: background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+button.badge-inventory-status.is-clickable:hover {
+  background: var(--primary);
+  color: var(--bg-card);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.14);
+}
+
+button.badge-inventory-status.is-clickable:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Modal aset IT karyawan */
+.karyawan-assets-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 20px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  background: var(--bg-body);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.karyawan-assets-meta-item {
+  min-width: 0;
+}
+
+.karyawan-assets-meta-item > span {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.karyawan-assets-meta-item > strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.88rem;
+  overflow-wrap: anywhere;
+}
+
+.karyawan-assets-count {
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.karyawan-assets-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.karyawan-assets-table {
+  width: 100%;
+  min-width: 560px;
+}
+
+.karyawan-assets-note {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+@media (max-width: 520px) {
+  .karyawan-assets-meta {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* --- Page Body --- */
 .page-body {
   width: min(100%, 1600px);
@@ -1112,6 +1208,36 @@ table {
 .inventory-category-control select {
   width: 100%;
   cursor: pointer;
+}
+
+.inventory-location-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  min-width: 0;
+}
+
+.inventory-location-label {
+  flex: 0 0 auto;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.inventory-location-tabs {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (max-width: 768px) {
+  .inventory-location-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
 }
 
 .table-data-inventaris .inventory-code-column { width: 14%; }
