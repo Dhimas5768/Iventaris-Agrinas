@@ -68,7 +68,8 @@ const USER_KEBUN_LABEL = 'User Kebun';
 const DEFAULT_KEBUN_USERS = {
   'ledo1@agrinas.co.id': 'Ledo 1',
   'ledo2@agrinas.co.id': 'Ledo 2',
-  'ledo3@agrinas.co.id': 'Ledo 3'
+  'ledo3@agrinas.co.id': 'Ledo 3',
+  'pks@agrinas.co.id': 'PKS'
 };
 const KEBUN_USER_RESTRICTED_VIEWS = ['dashboard', 'kebun', 'pengaturan'];
 const KEBUN_USER_HOME_VIEW = 'inventaris';
@@ -379,9 +380,10 @@ const App = {
     State.kebun = Raw.kebun.filter(item => norm(item.nama_kebun) === norm(kebun));
   },
 
+  // Akun bawaan (kode) selalu berlaku; daftar dari Firestore (settings/roles.kebunUsers) menambah atau menimpa.
   normalizeKebunUsers(value) {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return { ...DEFAULT_KEBUN_USERS };
-    const normalized = {};
+    const normalized = { ...DEFAULT_KEBUN_USERS };
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return normalized;
     Object.entries(value).forEach(([email, kebun]) => {
       const normalizedEmail = String(email).trim().toLowerCase();
       const kebunName = typeof kebun === 'string' ? kebun.trim() : '';
@@ -560,12 +562,15 @@ const App = {
     if (entries.length === 0) {
       list.innerHTML = '<li class="admin-email-item"><span>Belum ada akun User Kebun.</span></li>';
     } else {
-      list.innerHTML = entries.map(([email, kebun]) => `
+      list.innerHTML = entries.map(([email, kebun]) => {
+        const isBuiltIn = Object.prototype.hasOwnProperty.call(DEFAULT_KEBUN_USERS, email);
+        return `
         <li class="admin-email-item">
-          <span>${this.escape(email)} &rarr; ${this.escape(kebun)}</span>
-          <button type="button" class="btn btn-outline btn-remove-admin" data-remove-kebun-user="${this.escape(email)}">Hapus</button>
+          <span>${this.escape(email)} &rarr; ${this.escape(kebun)}${isBuiltIn ? ' (bawaan)' : ''}</span>
+          <button type="button" class="btn btn-outline btn-remove-admin" data-remove-kebun-user="${this.escape(email)}"${isBuiltIn ? ' disabled title="Akun bawaan sistem tidak dapat dihapus dari menu ini"' : ''}>Hapus</button>
         </li>
-      `).join('');
+      `;
+      }).join('');
     }
     this.populateKebunUserSelect();
   },
@@ -615,6 +620,10 @@ const App = {
     if (!this.requireAdmin()) return;
     const normalizedEmail = String(email || '').trim().toLowerCase();
     if (!State.kebunUsers[normalizedEmail]) return;
+    if (Object.prototype.hasOwnProperty.call(DEFAULT_KEBUN_USERS, normalizedEmail)) {
+      this.setKebunUserStatus('Akun bawaan sistem tidak dapat dihapus dari menu ini.', true);
+      return;
+    }
     if (!confirm(`Hapus akses User Kebun untuk ${normalizedEmail}?`)) return;
     const next = { ...State.kebunUsers };
     delete next[normalizedEmail];
